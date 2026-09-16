@@ -1,0 +1,6 @@
+project:
+  name: news-breakout
+
+ingestion:
+  gdelt_rss_url: "https://data.gdeltproject.org/gdeltv3/gal/feed.rss"
+  output_path: "data/raw/gdelt_articles.parquet"
