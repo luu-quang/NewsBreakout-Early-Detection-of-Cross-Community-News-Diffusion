@@ -39,8 +39,8 @@ team_work/phase1/vietnamese_team/code/
 
 Suggested files:
 ```text
-collect_vn.py
-clean_vn.py
+collect_vn.py (Cào dữ liệu từ 5 RSS feeds, lưu thô, và gọi hàm làm sạch)
+clean_vn.py (Xử lý chuỗi, chuẩn hóa URL, băm SHA-256, parse ngày giờ UTC, và map 20 trường)
 ```
 
 ### 3. Basic cleaning
@@ -101,25 +101,25 @@ Do not commit a large raw news archive.
 ## Source tracker
 | Publisher | Feed / URL | Method | Working? | Notes |
 |---|---|---|---|---|
-| VnExpress |  | RSS |  |  |
-| Tuổi Trẻ |  | RSS |  |  |
-| Thanh Niên |  | RSS |  |  |
-| VietnamNet |  | RSS |  |  |
-| Dân Trí |  | RSS |  |  |
+| VnExpress | `https://vnexpress.net/rss/tin-moi-nhat.rss` | RSS | Yes | |
+| Tuổi Trẻ | `https://tuoitre.vn/rss/tin-moi-nhat.rss` | RSS | Yes | |
+| Thanh Niên | `https://thanhnien.vn/rss/home.rss` | RSS | Yes | |
+| VietnamNet | `https://vietnamnet.vn/rss/thoi-su.rss` | RSS | Yes | |
+| Dân Trí | `https://dantri.com.vn/rss/home.rss` | RSS | Yes | |
 
 ## Done when
-- [ ] Several working Vietnamese publishers
-- [ ] Collection runs automatically
-- [ ] Raw records are preserved
-- [ ] Small cleaned sample is committed
-- [ ] `title` is present
-- [ ] `url` is present
-- [ ] `publisher_domain` is correct
-- [ ] `first_seen_at` is present
-- [ ] `branch = domestic`
-- [ ] `collection_mode = prospective`
-- [ ] Output follows the shared schema
-- [ ] Known issues are documented
+- [x] Several working Vietnamese publishers
+- [x] Collection runs automatically
+- [x] Raw records are preserved
+- [x] Small cleaned sample is committed
+- [x] `title` is present
+- [x] `url` is present
+- [x] `publisher_domain` is correct
+- [x] `first_seen_at` is present
+- [x] `branch = domestic`
+- [x] `collection_mode = prospective`
+- [x] Output follows the shared schema
+- [x] Known issues are documented
 
 ## Git workflow
 Before working:
