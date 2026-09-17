@@ -7,7 +7,15 @@ Two collection methods, both writing rows in the shared NewsBreakout schema:
    the keyword "Vietnam". This is a live/prospective search, not the unfiltered
    Global Article List feed.
 2. Direct publisher RSS (``source_system = rss``) — pulls each publisher's own
-   feed and keeps only entries whose title/summary mention Vietnam.
+   feed (BBC, CNA, SCMP, Nikkei Asia, Straits Times) and keeps only entries whose
+   title/summary mention Vietnam. Reuters and AP have no public RSS feed anymore
+   (every candidate URL returned 403/404) - they're only reachable via GDELT DOC.
+   GDELT is a supplementary/fallback source here, not the primary one.
+
+Neither source gives a confirmed publisher-reported timestamp for every row:
+GDELT's ``seendate`` is when GDELT's crawler observed the article, not when it
+was published, so it is only ever used for ``first_seen_at`` - never
+``published_at``, which stays null unless a source (RSS) explicitly reports one.
 
 Raw (unfiltered-by-cleaning) rows are appended to
 ``data/raw/international/international_raw.parquet``, deduplicated by URL while
@@ -52,10 +60,15 @@ PUBLISHERS = {
     "asia.nikkei.com": {"publisher_id": "nikkei_asia", "publisher_group_id": "nikkei", "publisher_country": "JP"},
 }
 
-# publisher_domain -> RSS feed URL, for publishers with a usable open feed
+# publisher_domain -> RSS feed URL, for publishers with a usable open feed.
+# Reuters and apnews.com have no public RSS feed anymore (discontinued years ago;
+# every candidate URL we tried returned 403/404) - they're only covered via GDELT DOC.
 RSS_FEEDS = {
     "bbc.com": "https://feeds.bbci.co.uk/news/world/asia/rss.xml",
     "channelnewsasia.com": "https://www.channelnewsasia.com/rssfeeds/8395986",
+    "scmp.com": "https://www.scmp.com/rss/91/feed",
+    "asia.nikkei.com": "https://asia.nikkei.com/rss/feed/nar",
+    "straitstimes.com": "https://www.straitstimes.com/news/asia/rss.xml",
 }
 
 COLUMNS = [
@@ -80,6 +93,11 @@ COLUMNS = [
     "collection_mode",
     "raw_payload_ref",
 ]
+
+# polled_at is this run's own wall-clock observation time. It is not part of the
+# shared schema (COLUMNS) - it exists only to let merge_with_history() compute a
+# correct, monotonically growing last_seen_at across repeated runs (see below).
+FETCH_COLUMNS = COLUMNS + ["polled_at"]
 
 
 def domain_from_url(url: str) -> str:
@@ -147,11 +165,11 @@ def fetch_gdelt_doc(
             payload = response.json()
         except ValueError:
             print("[gdelt_doc] non-JSON response, skipping this source for now")
-            return pd.DataFrame(columns=COLUMNS)
+            return pd.DataFrame(columns=FETCH_COLUMNS)
         break
     else:
         print("[gdelt_doc] still rate-limited after retries, skipping this source for now")
-        return pd.DataFrame(columns=COLUMNS)
+        return pd.DataFrame(columns=FETCH_COLUMNS)
 
     observed_at = datetime.now(timezone.utc).isoformat()
     rows = []
@@ -162,14 +180,23 @@ def fetch_gdelt_doc(
             continue
 
         row = base_row(url, title, source_system="gdelt_doc", collection_mode=collection_mode)
+        row["polled_at"] = observed_at
+
+        # GDELT DOC's artlist mode never gives a confirmed publisher timestamp -
+        # seendate is when GDELT's crawler observed the article, not when the
+        # publisher published it. Do not put it in published_at (leave that null).
+        # It's still useful as an earliest-known-observation bound though - often
+        # earlier than our own poll time - so use it for first_seen_at when parseable.
+        row["published_at"] = None
         row["first_seen_at"] = observed_at
-        row["timestamp_confidence"] = "gdelt_seen_time"  # seendate is when GDELT observed it, not confirmed publish time
+        row["timestamp_confidence"] = "collector_poll_time"
         seendate = article.get("seendate")
         if seendate:
             try:
-                row["published_at"] = datetime.strptime(seendate, "%Y%m%dT%H%M%SZ").replace(
+                row["first_seen_at"] = datetime.strptime(seendate, "%Y%m%dT%H%M%SZ").replace(
                     tzinfo=timezone.utc
                 ).isoformat()
+                row["timestamp_confidence"] = "gdelt_seen_time"
             except ValueError:
                 pass
         language = article.get("language")
@@ -179,7 +206,7 @@ def fetch_gdelt_doc(
             row["publisher_country"] = article.get("sourcecountry")
         rows.append(row)
 
-    return pd.DataFrame(rows, columns=COLUMNS)
+    return pd.DataFrame(rows, columns=FETCH_COLUMNS)
 
 
 def fetch_publisher_rss() -> pd.DataFrame:
@@ -203,6 +230,7 @@ def fetch_publisher_rss() -> pd.DataFrame:
                 continue
 
             row = base_row(url, title, source_system="rss")
+            row["polled_at"] = observed_at
             row["first_seen_at"] = observed_at
             row["description"] = summary.strip() or None
 
@@ -214,21 +242,37 @@ def fetch_publisher_rss() -> pd.DataFrame:
                 row["timestamp_confidence"] = "first_seen_only"
             rows.append(row)
 
-    return pd.DataFrame(rows, columns=COLUMNS)
+    return pd.DataFrame(rows, columns=FETCH_COLUMNS)
 
 
 def merge_with_history(new_df: pd.DataFrame, output_path: Path) -> pd.DataFrame:
+    """Merge this run's rows into the persisted history, deduped by URL.
+
+    IMPORTANT: last_seen_at must track "the most recent run that still observed
+    this URL", accumulated across arbitrarily many runs. An earlier version of
+    this function set `last_seen_at = first_seen_at` unconditionally on every
+    row (old and new) before aggregating, which clobbered whatever last_seen_at
+    had already been correctly computed by previous runs for URLs not
+    re-fetched this time - last_seen_at silently regressed back to first_seen_at
+    for anything not appearing in the current snapshot. Fixed by only deriving
+    last_seen_at from this run's own poll time (`polled_at`) for genuinely new
+    rows, and leaving already-persisted last_seen_at values (read back from
+    disk) untouched until the max-aggregation step.
+    """
     if output_path.exists():
         old_df = pd.read_parquet(output_path)
     else:
-        old_df = pd.DataFrame(columns=COLUMNS)
+        old_df = pd.DataFrame(columns=COLUMNS + ["last_seen_at"])
+
+    new_df = new_df.copy()
+    new_df["last_seen_at"] = new_df.pop("polled_at")
 
     combined = pd.concat([old_df, new_df], ignore_index=True)
     if combined.empty:
         return pd.DataFrame(columns=COLUMNS + ["last_seen_at"])
 
     combined["first_seen_at"] = pd.to_datetime(combined["first_seen_at"], utc=True)
-    combined["last_seen_at"] = combined["first_seen_at"]
+    combined["last_seen_at"] = pd.to_datetime(combined["last_seen_at"], utc=True)
 
     other_cols = [c for c in COLUMNS if c not in ("article_id", "url", "first_seen_at")]
     agg = {col: "last" for col in other_cols}
@@ -273,7 +317,7 @@ def main() -> None:
             frames.append(fetch_gdelt_doc())
         frames.append(fetch_publisher_rss())
 
-    new_df = pd.concat(frames, ignore_index=True) if frames else pd.DataFrame(columns=COLUMNS)
+    new_df = pd.concat(frames, ignore_index=True) if frames else pd.DataFrame(columns=FETCH_COLUMNS)
     new_df = new_df.drop_duplicates(subset=["url"]).reset_index(drop=True)
 
     merged_df = merge_with_history(new_df, output_path)
