@@ -66,6 +66,9 @@ def is_vietnam_relevant(title: str, description: str | None) -> bool:
 
 
 def clean(raw_df: pd.DataFrame) -> pd.DataFrame:
+    if raw_df.empty:
+        return pd.DataFrame(columns=SHARED_SCHEMA)
+
     df = raw_df.copy()
 
     # remove obviously broken records
@@ -95,10 +98,15 @@ def clean(raw_df: pd.DataFrame) -> pd.DataFrame:
         if col not in df.columns:
             df[col] = None
 
+    # sort most-recent-published first; a single collection run shares one first_seen_at,
+    # so sorting by that alone (as an earlier version of this script did) does not
+    # surface recent articles - it leaves rows in whatever order groupby happened to produce.
+    df = df.sort_values("published_at", ascending=False)
+
     df["first_seen_at"] = df["first_seen_at"].dt.strftime("%Y-%m-%dT%H:%M:%SZ")
     df["published_at"] = df["published_at"].dt.strftime("%Y-%m-%dT%H:%M:%SZ")
 
-    return df[SHARED_SCHEMA].sort_values("first_seen_at").reset_index(drop=True)
+    return df[SHARED_SCHEMA].reset_index(drop=True)
 
 
 def main() -> None:
@@ -123,7 +131,7 @@ def main() -> None:
     sample_path = Path(args.sample_output)
     sample_path.parent.mkdir(parents=True, exist_ok=True)
     sample_size = max(1, min(args.sample_size, 100))
-    clean_df.tail(sample_size).to_csv(sample_path, index=False)
+    clean_df.head(sample_size).to_csv(sample_path, index=False)
 
     print(f"Raw rows      : {len(raw_df):,}")
     print(f"Cleaned rows  : {len(clean_df):,}")

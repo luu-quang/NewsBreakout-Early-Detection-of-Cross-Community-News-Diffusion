@@ -31,6 +31,15 @@ import requests
 GDELT_DOC_URL = "https://api.gdeltproject.org/api/v2/doc/doc"
 RAW_OUTPUT_PATH = Path("data/raw/international/international_raw.parquet")
 
+# Without an explicit timespan, GDELT DOC searches its full default corpus
+# (empirically ~2-3 months back), not "recent" articles, even with sort=datedesc.
+# Dedicated Vietnam coverage from these specific major outlets is genuinely
+# sparse (~3-5 articles/week across all 7 domains combined, checked manually) -
+# a 1-3 day window regularly comes back empty. 1 week is the narrowest setting
+# that reliably returns anything; merge_with_history() dedupes by URL so the
+# overlap between runs is harmless.
+GDELT_TIMESPAN = "1w"
+
 # publisher_domain -> static metadata used regardless of which collection method found the article
 PUBLISHERS = {
     "reuters.com": {"publisher_id": "reuters", "publisher_group_id": "thomson_reuters", "publisher_country": "GB"},
@@ -82,7 +91,7 @@ def article_id_from_url(url: str) -> str:
     return hashlib.sha256(url.encode("utf-8")).hexdigest()[:16]
 
 
-def base_row(url: str, title: str, source_system: str) -> dict:
+def base_row(url: str, title: str, source_system: str, collection_mode: str = "prospective") -> dict:
     domain = domain_from_url(url)
     meta = PUBLISHERS.get(domain, {})
     return {
@@ -102,12 +111,14 @@ def base_row(url: str, title: str, source_system: str) -> dict:
         "vietnam_relevance": True,
         "duplicate_family_id": None,
         "branch": "international",
-        "collection_mode": "prospective",
+        "collection_mode": collection_mode,
         "raw_payload_ref": None,
     }
 
 
-def fetch_gdelt_doc(max_retries: int = 3) -> pd.DataFrame:
+def fetch_gdelt_doc(
+    timespan: str = GDELT_TIMESPAN, collection_mode: str = "prospective", max_retries: int = 3
+) -> pd.DataFrame:
     """Search GDELT DOC 2.0 for Vietnam coverage restricted to PUBLISHERS' domains.
 
     GDELT asks for at most one request every 5 seconds; a 429 here means the
@@ -121,6 +132,7 @@ def fetch_gdelt_doc(max_retries: int = 3) -> pd.DataFrame:
         "maxrecords": 250,
         "format": "json",
         "sort": "datedesc",
+        "timespan": timespan,
     }
 
     for attempt in range(max_retries):
@@ -149,7 +161,7 @@ def fetch_gdelt_doc(max_retries: int = 3) -> pd.DataFrame:
         if not url or not title:
             continue
 
-        row = base_row(url, title, source_system="gdelt_doc")
+        row = base_row(url, title, source_system="gdelt_doc", collection_mode=collection_mode)
         row["first_seen_at"] = observed_at
         row["timestamp_confidence"] = "gdelt_seen_time"  # seendate is when GDELT observed it, not confirmed publish time
         seendate = article.get("seendate")
@@ -230,17 +242,36 @@ def merge_with_history(new_df: pd.DataFrame, output_path: Path) -> pd.DataFrame:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Collect Vietnam-related international articles.")
-    parser.add_argument("--output", default=str(RAW_OUTPUT_PATH))
+    parser.add_argument("--output", default=None)
     parser.add_argument("--skip-gdelt", action="store_true", help="skip the GDELT DOC API call")
+    parser.add_argument(
+        "--historical-days",
+        type=int,
+        default=None,
+        help=(
+            "Backfill mode: search GDELT DOC over this many past days instead of the "
+            "live prospective window, tag rows collection_mode=historical_backfill, and "
+            "write to a separate file so backfill never mixes into the live 48h pilot data. "
+            "Skips RSS (not meaningful for backfill)."
+        ),
+    )
     args = parser.parse_args()
 
-    output_path = Path(args.output)
+    historical = args.historical_days is not None
+    output_path = Path(args.output) if args.output else (
+        Path("data/raw/international/international_historical.parquet")
+        if historical
+        else RAW_OUTPUT_PATH
+    )
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
     frames = []
-    if not args.skip_gdelt:
-        frames.append(fetch_gdelt_doc())
-    frames.append(fetch_publisher_rss())
+    if historical:
+        frames.append(fetch_gdelt_doc(timespan=f"{args.historical_days}d", collection_mode="historical_backfill"))
+    else:
+        if not args.skip_gdelt:
+            frames.append(fetch_gdelt_doc())
+        frames.append(fetch_publisher_rss())
 
     new_df = pd.concat(frames, ignore_index=True) if frames else pd.DataFrame(columns=COLUMNS)
     new_df = new_df.drop_duplicates(subset=["url"]).reset_index(drop=True)
