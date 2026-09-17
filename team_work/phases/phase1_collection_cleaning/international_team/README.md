@@ -7,7 +7,7 @@ Do **not** collect generic world news unrelated to Vietnam.
 
 Working branch:
 ```text
-phase1-international
+international
 ```
 
 ## Team
@@ -52,13 +52,19 @@ Collection methods may include:
 ### 2. Build or update the collector
 Put code in:
 ```text
-team_work/phase1/international_team/code/
+team_work/phases/phase1_collection_cleaning/international_team/code/
 ```
 
-Suggested files:
+Files:
 ```text
-collect_intl.py
-clean_intl.py
+collect_intl.py   # GDELT DOC 2.0 search + direct publisher RSS -> data/raw/international/international_raw.parquet
+clean_intl.py     # basic cleaning + relevance filter -> data/processed/international/international_clean.parquet + sample_output/sample_intl.csv
+```
+
+Run:
+```bash
+python3 team_work/phases/phase1_collection_cleaning/international_team/code/collect_intl.py
+python3 team_work/phases/phase1_collection_cleaning/international_team/code/clean_intl.py
 ```
 
 ### 3. Verify Vietnam relevance
@@ -112,7 +118,7 @@ Historical backfill must not be mixed into the live 48-hour pilot.
 ## Sample output
 Put a 20–100 row review sample in:
 ```text
-team_work/phase1/international_team/sample_output/
+team_work/phases/phase1_collection_cleaning/international_team/sample_output/
 ```
 
 Do not commit large raw archives.
@@ -120,35 +126,46 @@ Do not commit large raw archives.
 ## Source tracker
 | Publisher / source | Feed / query | Method | Working? | Notes |
 |---|---|---|---|---|
-| Reuters |  | RSS / GDELT |  |  |
-| BBC |  | RSS / GDELT |  |  |
-| Nikkei |  | RSS / GDELT |  |  |
-| CNA |  | RSS / GDELT |  |  |
-| GDELT live | Vietnam query | GDELT |  | collection system |
+| Reuters | domain:reuters.com + "Vietnam" | GDELT DOC | Registered, 0 hits in first snapshot | included in the GDELT domain filter; just didn't surface in this run |
+| BBC | domain:bbc.com/bbc.co.uk + "Vietnam"; feeds.bbci.co.uk/news/world/asia/rss.xml | GDELT DOC + RSS | Yes | GDELT DOC found both English and Vietnamese-language BBC articles |
+| Nikkei Asia | domain:asia.nikkei.com + "Vietnam" | GDELT DOC | Yes | |
+| CNA | domain:channelnewsasia.com + "Vietnam"; channelnewsasia.com/rssfeeds/8395986 | GDELT DOC + RSS | Yes (GDELT); RSS returned 0 in this run | |
+| SCMP | domain:scmp.com + "Vietnam" | GDELT DOC | Yes | |
+| Straits Times | domain:straitstimes.com + "Vietnam" | GDELT DOC | Yes, but noisiest source | see known issues |
+| AP | domain:apnews.com + "Vietnam" | GDELT DOC | Registered, 0 hits in first snapshot | |
+| GDELT DOC 2.0 | `(domain:... OR ...) Vietnam` | GDELT | Yes | collection system, not a publisher — this is `source_system = gdelt_doc` |
+
+## Known issues
+- GDELT DOC search matches full article text, not just the headline. Before filtering, a large share of Straits Times hits (~90% in our first snapshot) mentioned Vietnam only in sidebar/related-story text, not the actual article. Fixed in `clean_intl.py` by recomputing `vietnam_relevance` from title/description only and dropping non-matching rows during cleaning (raw data is kept as-is).
+- `published_at` for `gdelt_doc` rows comes from GDELT's `seendate`, i.e. when GDELT's crawler observed the article — not a confirmed publisher timestamp. Reflected via `timestamp_confidence = gdelt_seen_time`.
+- RSS collection only checks the current ~20-30 items in each feed, so a given snapshot can easily return 0 Vietnam-relevant entries even though the feed is working; GDELT DOC is the more reliable primary source, RSS is a supplementary/lower-confidence source (`timestamp_confidence = publisher_reported` when the feed provides a date, else `first_seen_only`).
+- GDELT DOC's API rate-limits to roughly one request per 5 seconds per IP; on some networks (e.g. shared/sandboxed ones) this returns HTTP 429. `collect_intl.py` retries with backoff and skips the GDELT source for that run rather than failing, so the RSS path still runs.
+- `publisher_group_id`, `category`, `duplicate_family_id`, and `raw_payload_ref` are not yet populated (left `None`) — no source currently supplies them and syndication-family grouping is a Phase 2 concern.
+- Reuters and AP are registered as target domains but returned 0 articles in the first snapshot; worth re-checking on a later run before concluding they don't work.
 
 ## Done when
-- [ ] Several working international publishers/sources
-- [ ] Collection runs automatically
-- [ ] Articles are actually about Vietnam
-- [ ] Small cleaned sample is committed
-- [ ] Real publisher is identified
-- [ ] `source_system` is correct
-- [ ] `first_seen_at` is present
-- [ ] `branch = international`
-- [ ] `collection_mode = prospective`
-- [ ] Output follows the same schema as Vietnamese team
-- [ ] Known issues are documented
+- [x] Several working international publishers/sources
+- [x] Collection runs automatically (`collect_intl.py` then `clean_intl.py`)
+- [x] Articles are actually about Vietnam (title/description-based relevance filter)
+- [x] Small cleaned sample is committed (`sample_output/sample_intl.csv`)
+- [x] Real publisher is identified (`publisher_domain`)
+- [x] `source_system` is correct (`gdelt_doc` / `rss`)
+- [x] `first_seen_at` is present
+- [x] `branch = international`
+- [x] `collection_mode = prospective`
+- [x] Output follows the same schema as Vietnamese team
+- [x] Known issues are documented
 
 ## Git workflow
 Before working:
 ```bash
-git checkout phase1-international
-git pull origin phase1-international
+git checkout international
+git pull origin international
 ```
 
 After changes:
 ```bash
-git add team_work/phase1/international_team
+git add team_work/phases/phase1_collection_cleaning/international_team
 git commit -m "Update international Phase 1 collection"
-git push origin phase1-international
+git push origin international
 ```
