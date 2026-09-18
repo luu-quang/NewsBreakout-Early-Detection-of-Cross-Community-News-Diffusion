@@ -21,8 +21,9 @@ Raw data is never modified or deleted; this script only reads it.
 from __future__ import annotations
 
 import argparse
+import hashlib
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 
 import pandas as pd
 
@@ -54,6 +55,25 @@ SHARED_SCHEMA = [
     "raw_payload_ref",
 ]
 
+# source_seen_at (e.g. GDELT's seendate) is QC-only metadata, deliberately excluded
+# from SHARED_SCHEMA (the official cross-team table) - see collect_intl.py.
+AUDIT_SCHEMA = SHARED_SCHEMA + ["source_seen_at"]
+
+# Tracking params that don't change article identity; dropped during canonicalization.
+_TRACKING_PARAMS = {"utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term", "fbclid", "gclid", "oc"}
+
+# Positive-signal terms for is_vietnam_relevant(). Beyond the literal "Vietnam" /
+# "Việt Nam" match, this adds major Vietnamese cities that international coverage
+# sometimes names without ever saying "Vietnam" (e.g. "Hanoi launches new metro
+# line"). Deliberately small and inspectable, not a gazetteer - see known issues in
+# the branch README for why this needs re-checking with real audit-table samples.
+_VIETNAM_KEYWORDS = [
+    "vietnam", "vietnamese", "việt nam",
+    "hanoi", "ha noi", "hà nội",
+    "ho chi minh city", "ho chi minh", "hcmc", "saigon", "sài gòn", "sai gon",
+    "da nang", "đà nẵng",
+]
+
 
 def normalize_domain(url_or_domain: str) -> str:
     hostname = url_or_domain
@@ -63,30 +83,59 @@ def normalize_domain(url_or_domain: str) -> str:
     return hostname[4:] if hostname.startswith("www.") else hostname
 
 
+def canonicalize_url(url: str) -> str:
+    """Strip tracking params/fragment and normalize scheme+host+path so that URL
+    variants of the same article (e.g. with/without ?utm_source=rss_feed) collapse
+    to one canonical form. Adapted from the Vietnamese team's clean_vn.py for
+    cross-branch consistency."""
+    try:
+        parsed = urlparse(url)
+        query = parse_qs(parsed.query)
+        clean_query = {k: v for k, v in query.items() if k not in _TRACKING_PARAMS}
+        netloc = parsed.netloc.lower()
+        if netloc.startswith("www."):
+            netloc = netloc[4:]
+        elif netloc.startswith("m."):
+            netloc = netloc[2:]
+        path = parsed.path.rstrip("/")
+        return urlunparse((parsed.scheme.lower() or "https", netloc, path, parsed.params, urlencode(clean_query, doseq=True), ""))
+    except Exception:
+        return url
+
+
+def article_id_from_url(url: str) -> str:
+    return hashlib.sha256(url.encode("utf-8")).hexdigest()[:16]
+
+
 def is_vietnam_relevant(title: str, description: str | None) -> bool:
-    """Require "Vietnam" in the title or description itself.
+    """Rule-based Vietnam relevance: literal "Vietnam"/"Việt Nam" plus a small set
+    of major Vietnamese place names that international coverage can use without
+    ever saying "Vietnam" itself.
 
     GDELT's DOC search matches full article text, which also picks up
     sidebar/related-story boilerplate — a bare keyword hit from the collector
-    is not enough to call an article Vietnam-relevant.
+    is not enough to call an article Vietnam-relevant, which is why this is
+    recomputed here from title/description only rather than trusted from collection.
     """
     text = f"{title} {description or ''}".lower()
-    return "vietnam" in text or "việt nam" in text
+    return any(keyword in text for keyword in _VIETNAM_KEYWORDS)
 
 
 def clean(raw_df: pd.DataFrame) -> pd.DataFrame:
-    """Basic cleaning + recomputed vietnam_relevance.
+    """Basic cleaning + URL canonicalization + recomputed vietnam_relevance.
 
-    Returns the audit/QC table: EVERY row that survives basic cleaning, with
-    both vietnam_relevance=True and False rows present. Callers that want only
-    the relevant rows must filter this themselves - this function used to drop
-    False rows internally, which meant the relevance heuristic's mistakes were
-    invisible to reviewers.
+    Returns the audit/QC table (AUDIT_SCHEMA columns): EVERY row that survives
+    basic cleaning, with both vietnam_relevance=True and False rows present.
+    Callers that want only the relevant rows must filter this themselves - this
+    function used to drop False rows internally, which meant the relevance
+    heuristic's mistakes were invisible to reviewers.
     """
     if raw_df.empty:
-        return pd.DataFrame(columns=SHARED_SCHEMA)
+        return pd.DataFrame(columns=AUDIT_SCHEMA)
 
     df = raw_df.copy()
+    if "source_seen_at" not in df.columns:
+        df["source_seen_at"] = None
 
     # remove obviously broken records
     df = df.dropna(subset=["title", "url"])
@@ -96,14 +145,20 @@ def clean(raw_df: pd.DataFrame) -> pd.DataFrame:
     df["publisher_domain"] = df["publisher_domain"].fillna("").map(normalize_domain)
     df = df[df["publisher_domain"] != ""]
 
+    # canonicalize URLs (strip tracking params/fragment) and rederive article_id from
+    # the canonical form, so tracking-param variants of the same article collapse to
+    # one row instead of silently becoming two different article_ids
+    df["canonical_url"] = df["url"].map(canonicalize_url)
+    df["article_id"] = df["canonical_url"].map(article_id_from_url)
+
     # normalize timestamps to UTC ISO 8601
-    for col in ("first_seen_at", "published_at"):
+    for col in ("first_seen_at", "published_at", "source_seen_at"):
         df[col] = pd.to_datetime(df[col], utc=True, errors="coerce")
 
     df = df.dropna(subset=["first_seen_at"])
 
-    # dedupe by URL, keeping the earliest observation
-    df = df.sort_values("first_seen_at").drop_duplicates(subset=["url"], keep="first")
+    # dedupe by canonical URL, keeping the earliest observation
+    df = df.sort_values("first_seen_at").drop_duplicates(subset=["canonical_url"], keep="first")
 
     # recompute vietnam_relevance from title/description, not just "the query matched somewhere";
     # both True and False rows are kept here - see module docstring
@@ -111,19 +166,23 @@ def clean(raw_df: pd.DataFrame) -> pd.DataFrame:
         lambda r: is_vietnam_relevant(r["title"], r.get("description")), axis=1
     )
 
-    for col in SHARED_SCHEMA:
+    for col in AUDIT_SCHEMA:
         if col not in df.columns:
             df[col] = None
 
-    # sort most-recent-published first; a single collection run shares one first_seen_at,
-    # so sorting by that alone (as an earlier version of this script did) does not
-    # surface recent articles - it leaves rows in whatever order groupby happened to produce.
-    df = df.sort_values("published_at", ascending=False)
+    # sort most-recent first for review. published_at is null for gdelt_doc rows
+    # (see collect_intl.py), so falling back to published_at alone (as an earlier
+    # version of this script did) leaves those rows in arbitrary order. Fall back
+    # to source_seen_at (GDELT's crawl time - still a decent recency proxy), then
+    # first_seen_at (our own poll time - identical within one run, but better than
+    # nothing) so every row has *some* meaningful sort key.
+    review_sort_time = df["published_at"].fillna(df["source_seen_at"]).fillna(df["first_seen_at"])
+    df = df.assign(_review_sort_time=review_sort_time).sort_values("_review_sort_time", ascending=False)
 
-    df["first_seen_at"] = df["first_seen_at"].dt.strftime("%Y-%m-%dT%H:%M:%SZ")
-    df["published_at"] = df["published_at"].dt.strftime("%Y-%m-%dT%H:%M:%SZ")
+    for col in ("first_seen_at", "published_at", "source_seen_at"):
+        df[col] = df[col].dt.strftime("%Y-%m-%dT%H:%M:%SZ")
 
-    return df[SHARED_SCHEMA].reset_index(drop=True)
+    return df[AUDIT_SCHEMA].reset_index(drop=True)
 
 
 def filter_pilot_window(df: pd.DataFrame, pilot_start: str | None) -> pd.DataFrame:
@@ -175,6 +234,9 @@ def main() -> None:
 
     relevant_df = audit_df[audit_df["vietnam_relevance"]].reset_index(drop=True)
     final_df = filter_pilot_window(relevant_df, args.pilot_start)
+    # source_seen_at is QC-only metadata (see AUDIT_SCHEMA) - excluded from the
+    # official cross-team table.
+    final_df = final_df[SHARED_SCHEMA]
 
     output_path = Path(args.output)
     output_path.parent.mkdir(parents=True, exist_ok=True)

@@ -6,21 +6,25 @@ Two collection methods, both writing rows in the shared NewsBreakout schema:
    index restricted to a fixed set of international publisher domains, requiring
    the keyword "Vietnam". This is a live/prospective search, not the unfiltered
    Global Article List feed.
-2. Direct publisher RSS (``source_system = rss``) — pulls each publisher's own
-   feed (BBC, CNA, SCMP, Nikkei Asia, Straits Times) and keeps only entries whose
-   title/summary mention Vietnam. Reuters and AP have no public RSS feed anymore
-   (every candidate URL returned 403/404) - they're only reachable via GDELT DOC.
-   GDELT is a supplementary/fallback source here, not the primary one.
+2. Direct publisher RSS (``source_system = rss``) — pulls EVERY current entry from
+   each publisher's own feed (BBC, CNA, SCMP, Nikkei Asia, Straits Times), with no
+   relevance filtering at collection time (see fetch_publisher_rss). Reuters and AP
+   have no public RSS feed anymore (every candidate URL returned 403/404) - they're
+   only reachable via GDELT DOC. GDELT is a supplementary/fallback source here, not
+   the primary one.
 
-Neither source gives a confirmed publisher-reported timestamp for every row:
-GDELT's ``seendate`` is when GDELT's crawler observed the article, not when it
-was published, so it is only ever used for ``first_seen_at`` - never
-``published_at``, which stays null unless a source (RSS) explicitly reports one.
+``first_seen_at`` always means "when OUR collector first observed this URL" - never
+a third party's observation time. Neither source gives a confirmed publisher-reported
+timestamp for every row: GDELT DOC's ``seendate`` (when GDELT's own crawler observed
+the article) is kept as auxiliary ``source_seen_at`` metadata instead - it is never
+written into ``first_seen_at`` or ``published_at``, both of which stay null for
+``gdelt_doc`` rows unless a source (RSS) explicitly reports a real publish time.
 
-Raw (unfiltered-by-cleaning) rows are appended to
+Raw (unfiltered-by-cleaning, unfiltered-by-relevance) rows are appended to
 ``data/raw/international/international_raw.parquet``, deduplicated by URL while
 tracking ``first_seen_at`` / ``last_seen_at`` across runs. Run ``clean_intl.py``
-afterwards to produce the cleaned table and review sample.
+afterwards to compute vietnam_relevance and produce the cleaned table and review
+sample.
 """
 
 from __future__ import annotations
@@ -94,10 +98,16 @@ COLUMNS = [
     "raw_payload_ref",
 ]
 
-# polled_at is this run's own wall-clock observation time. It is not part of the
-# shared schema (COLUMNS) - it exists only to let merge_with_history() compute a
-# correct, monotonically growing last_seen_at across repeated runs (see below).
-FETCH_COLUMNS = COLUMNS + ["polled_at"]
+# source_seen_at (a source's own observation time, e.g. GDELT's seendate) is kept
+# as auxiliary metadata alongside the shared 20-column schema - useful for QC and
+# for sorting review samples when published_at is unavailable, but intentionally
+# excluded from the official cross-team table (clean_intl.py's SHARED_SCHEMA).
+RAW_COLUMNS = COLUMNS + ["source_seen_at"]
+
+# polled_at is this run's own wall-clock observation time. It is not persisted at
+# all - it exists only to let merge_with_history() compute a correct, monotonically
+# growing last_seen_at across repeated runs (see below).
+FETCH_COLUMNS = RAW_COLUMNS + ["polled_at"]
 
 
 def domain_from_url(url: str) -> str:
@@ -131,6 +141,11 @@ def base_row(url: str, title: str, source_system: str, collection_mode: str = "p
         "branch": "international",
         "collection_mode": collection_mode,
         "raw_payload_ref": None,
+        # GDELT-only auxiliary field, not part of the shared 20-column schema (COLUMNS).
+        # first_seen_at must always mean "when OUR collector observed it" - never a
+        # third party's observation time. GDELT's own crawl time is preserved here
+        # instead so it isn't lost, but it never overwrites first_seen_at.
+        "source_seen_at": None,
     }
 
 
@@ -182,18 +197,19 @@ def fetch_gdelt_doc(
         row = base_row(url, title, source_system="gdelt_doc", collection_mode=collection_mode)
         row["polled_at"] = observed_at
 
-        # GDELT DOC's artlist mode never gives a confirmed publisher timestamp -
-        # seendate is when GDELT's crawler observed the article, not when the
-        # publisher published it. Do not put it in published_at (leave that null).
-        # It's still useful as an earliest-known-observation bound though - often
-        # earlier than our own poll time - so use it for first_seen_at when parseable.
+        # first_seen_at is always OUR poll time - never GDELT's. GDELT DOC's artlist
+        # mode never gives a confirmed publisher timestamp either: seendate is when
+        # GDELT's crawler observed the article, not when the publisher published it,
+        # and not when we did. It's kept as auxiliary source_seen_at metadata (outside
+        # the shared 20-column schema) so it isn't lost, but never substituted into
+        # first_seen_at or published_at.
         row["published_at"] = None
         row["first_seen_at"] = observed_at
-        row["timestamp_confidence"] = "collector_poll_time"
+        row["timestamp_confidence"] = "unknown"
         seendate = article.get("seendate")
         if seendate:
             try:
-                row["first_seen_at"] = datetime.strptime(seendate, "%Y%m%dT%H%M%SZ").replace(
+                row["source_seen_at"] = datetime.strptime(seendate, "%Y%m%dT%H%M%SZ").replace(
                     tzinfo=timezone.utc
                 ).isoformat()
                 row["timestamp_confidence"] = "gdelt_seen_time"
@@ -210,7 +226,14 @@ def fetch_gdelt_doc(
 
 
 def fetch_publisher_rss() -> pd.DataFrame:
-    """Pull each publisher's own RSS feed, keeping only Vietnam-relevant entries."""
+    """Pull every entry from each publisher's own RSS feed - no relevance filtering here.
+
+    Each feed only holds ~20-30 current items, so collecting all of them (instead of
+    pre-filtering on a literal "vietnam" match) costs almost nothing and avoids losing
+    genuinely Vietnam-relevant articles whose title/summary never say "Vietnam"
+    literally (e.g. "Hanoi launches new metro line"). Relevance is decided later, in
+    clean_intl.py, against the full raw record - see is_vietnam_relevant() there.
+    """
     observed_at = datetime.now(timezone.utc).isoformat()
     rows = []
 
@@ -225,8 +248,6 @@ def fetch_publisher_rss() -> pd.DataFrame:
             title = str(entry.get("title", "")).strip()
             summary = str(entry.get("summary", ""))
             if not url or not title:
-                continue
-            if "vietnam" not in (title + " " + summary).lower():
                 continue
 
             row = base_row(url, title, source_system="rss")
@@ -262,26 +283,26 @@ def merge_with_history(new_df: pd.DataFrame, output_path: Path) -> pd.DataFrame:
     if output_path.exists():
         old_df = pd.read_parquet(output_path)
     else:
-        old_df = pd.DataFrame(columns=COLUMNS + ["last_seen_at"])
+        old_df = pd.DataFrame(columns=RAW_COLUMNS + ["last_seen_at"])
 
     new_df = new_df.copy()
     new_df["last_seen_at"] = new_df.pop("polled_at")
 
     combined = pd.concat([old_df, new_df], ignore_index=True)
     if combined.empty:
-        return pd.DataFrame(columns=COLUMNS + ["last_seen_at"])
+        return pd.DataFrame(columns=RAW_COLUMNS + ["last_seen_at"])
 
     combined["first_seen_at"] = pd.to_datetime(combined["first_seen_at"], utc=True)
     combined["last_seen_at"] = pd.to_datetime(combined["last_seen_at"], utc=True)
 
-    other_cols = [c for c in COLUMNS if c not in ("article_id", "url", "first_seen_at")]
+    other_cols = [c for c in RAW_COLUMNS if c not in ("article_id", "url", "first_seen_at")]
     agg = {col: "last" for col in other_cols}
     agg["article_id"] = "first"
     agg["first_seen_at"] = "min"
     agg["last_seen_at"] = "max"
 
     combined = combined.sort_values("first_seen_at").groupby("url", as_index=False).agg(agg)
-    return combined[COLUMNS + ["last_seen_at"]].sort_values("first_seen_at").reset_index(drop=True)
+    return combined[RAW_COLUMNS + ["last_seen_at"]].sort_values("first_seen_at").reset_index(drop=True)
 
 
 def main() -> None:
