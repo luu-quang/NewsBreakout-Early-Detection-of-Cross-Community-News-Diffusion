@@ -1,64 +1,80 @@
 # NewsBreakout — Phase 1 Team Workspace
 
 ## Goal
-Phase 1 is about **collecting and basic cleaning** of Vietnam-related news.
 
-We split into two teams:
-- Vietnamese team: Vietnamese publishers
-- International team: international publishers covering Vietnam
+Phase 1 collects Vietnam-related news, preserves raw/candidate records, performs basic cleaning and normalization, audits Vietnam relevance, and produces compatible Vietnamese and international outputs for downstream integration.
 
-Both teams must produce compatible outputs so the data can later be merged.
+Phase 1 is complete. Deduplication, event clustering, graph analysis, and prediction belong to later phases.
 
-## Current workflow
+## Team split
+
 ```text
-Vietnamese sources ─────┐
-                        ├──> collect
-International sources ──┘
-                             ↓
-                  preserve raw/candidates
-                             ↓
-                  basic cleaning + relevance flags
-                             ↓
-                  audit table (True and False)
-                             ↓
-                  relevant-only shared export
-                             ↓
-                  review by team lead
+Vietnamese team
+→ Vietnamese publishers
+
+International team
+→ international publishers covering Vietnam
 ```
 
-Do not start event clustering, graph analysis, prediction, or final visualization yet.
+Both teams follow the same shared data contract.
+
+## Workflow
+
+```text
+sources
+  ↓
+collection
+  ↓
+raw / candidate preservation
+  ↓
+basic cleaning + normalization
+  ↓
+Vietnam relevance audit
+  ↓
+audit table containing True + False rows
+  ↓
+relevant-only export
+  ↓
+Phase 2A master integration
+```
 
 ## Shared rules
-1. Preserve raw data.
-2. Use automated collection when possible.
-3. Do not commit large raw datasets to GitHub.
-4. Commit only code, notes, and small sample outputs.
-5. Both teams must follow the same schema.
-6. Prefer direct publisher RSS when available; use GDELT as supplementary discovery/fallback, not as a publisher.
 
-## Shared data contract (frozen)
+1. Preserve raw/candidate data.
+2. Use automated collection where possible.
+3. Do not commit large raw or processed datasets to Git.
+4. Commit code, documentation, and small review samples.
+5. Both teams must follow the same shared schema.
+6. Prefer direct publisher RSS where usable.
+7. GDELT is supplementary discovery/fallback, not a publisher.
+8. Keep `prospective` collection separate from `historical_backfill`.
 
-These definitions apply to both teams. They specify the required handoff, not a claim that all implementation work is finished.
+## Shared data contract — frozen
 
 | Field | Shared meaning |
 |---|---|
-| `first_seen_at` | Time our collector first observed the article URL. Preserve the earliest stored observation across repeated polls; never backdate it from publication or source timestamps. |
-| `published_at` | Publisher-reported publication time only. Null when absent or unparseable; never fill from GDELT `seendate` or collector time. |
-| `source_seen_at` | Auxiliary source observation time, e.g. GDELT `seendate`. Preserve when available in raw/audit metadata; it is not a required column in the shared 20-column export below. |
-| `vietnam_relevance` | Whether the article substantively concerns Vietnam, rather than an incidental mention. Same semantic meaning for both teams, implemented through documented source-aware rule-based heuristics. |
-| `raw_payload_ref` | Reference enabling a cleaned row to be traced to its original source payload. International support remains unfinished and must be completed before the pilot. |
+| `first_seen_at` | Time our collector first observed the article URL. Preserve the earliest stored observation across repeated polls. |
+| `published_at` | Publisher-reported publication time only. Null when unavailable or unparseable. |
+| `source_seen_at` | Auxiliary source observation time retained in raw/audit metadata when available. It is not part of the frozen 20-column shared export. |
+| `vietnam_relevance` | Whether the article substantively concerns Vietnam rather than merely mentioning it incidentally. |
+| `raw_payload_ref` | Reference that allows a cleaned/audit row to be traced to its preserved raw source payload. |
 
-Normalize timestamps to UTC with explicit timezone information. `timestamp_confidence` describes timestamp quality; it does not permit replacing one timestamp's meaning with another.
+Normalize timestamps to UTC with explicit timezone information.
 
-### Relevance and preservation
+Do not replace one timestamp meaning with another. In particular, do not fill `first_seen_at` from publication time or GDELT observation time.
 
-A domestic publisher, Vietnamese language, or `branch = domestic` must not imply `vietnam_relevance=True`. Domestic rules should consider Vietnamese entities and local context; international rules should consider English/other-language variants and reject incidental or sidebar mentions. A literal match for "Vietnam" alone is neither required nor sufficient. Document each team's rules and known false positives/false negatives.
+## Relevance and preservation
 
-Preserve every fetched raw/candidate record before final relevance filtering, including RSS entries that lack an explicit Vietnam keyword. Source queries may constrain discovery, so record those constraints as coverage limitations. Retain a cleaned candidate/audit table with both `True` and `False` rows and traceability to raw inputs; record rejected/broken rows and their reasons rather than silently losing them. Derive relevant-only exports from the audit table, without overwriting it. Review examples from both classes, and keep warm-up and backfill records available for audit.
+Publisher origin, language, and branch do not automatically determine Vietnam relevance.
 
-Relevance quality affects later early breakout-risk prediction: false negatives can hide early coverage and shift observed event onset, and false positives can distort event clusters, publisher diversity, and cross-community spread. Phase 1 establishes auditable inputs; event clustering, graph construction/analysis, and prediction are outside this phase.
+The Vietnamese and international pipelines use source-aware rule-based heuristics over available title/description evidence and relevant entities/places. These heuristics are not ground truth, so review samples from both relevance classes are retained.
 
-## Shared schema
+Preserve raw/candidate records before final relevance filtering. Keep a cleaned audit table containing both `vietnam_relevance=True` and `False`, with rejection reasons where applicable and traceability through `raw_payload_ref`.
+
+The relevant-only export is derived from the audit table rather than replacing it.
+
+## Frozen 20-column shared schema
+
 ```text
 article_id
 title
@@ -82,47 +98,107 @@ collection_mode
 raw_payload_ref
 ```
 
-For live collection:
-```text
-collection_mode = prospective
-```
+Branches:
 
-Use `collection_mode = historical_backfill` for deliberate retrospective collection. Keep backfill files, samples, and counts separate from prospective outputs; never relabel backfill as live data. Even for backfill, `first_seen_at` records our actual collection time, not a historical source timestamp. Publisher branch and collection mode are independent.
-
-Publisher branch:
 ```text
 domestic
 international
 ```
 
-## Folder structure
+Collection modes:
+
 ```text
-team_work/phases/
-└── phase1_collection_cleaning/
-    ├── README.md
-    ├── vietnamese_team/
-    │   ├── README.md
-    │   ├── code/
-    │   └── sample_output/
-    └── international_team/
-        ├── README.md
-        ├── code/
-        └── sample_output/
+prospective
+historical_backfill
 ```
 
-## Phase 1 completion target
-Each team should provide:
-- working collector code
-- several reliable sources
-- a small 20–100 row sample
-- basic cleaning/normalization
-- documented known issues
-- compatible schema
+`duplicate_family_id` remains null in Phase 1.
 
-## Shared 48-hour prospective pilot
+## Folder structure
 
-Once both collectors are stable, both teams have reviewed relevance audit samples, and international `raw_payload_ref` is complete and verified, the team lead records one agreed `T_start` (ISO 8601 UTC) in the pilot run notes for both teams. The actual timestamp is set at launch, not independently by each team.
+```text
+team_work/phases/phase1_collection_cleaning/
+├── README.md
+├── vietnamese_team/
+│   ├── README.md
+│   ├── code/
+│   └── sample_output/
+└── international_team/
+    ├── README.md
+    ├── code/
+    └── sample_output/
+```
 
-Run repeated collection over the same fixed interval `[T_start, T_start + 48 hours)`. Official pilot rows must have `collection_mode = prospective` and `T_start <= first_seen_at < T_start + 48 hours`; the final relevant-only view additionally requires `vietnam_relevance=True`. Preserve both relevance classes for the pilot audit. Neither `published_at` nor `source_seen_at` determines pilot membership.
+## Final Phase 1 outputs used by Phase 2A
 
-Exclude pre-pilot warm-up observations and all historical backfill from official pilot counts while retaining them for audit. Do not reset an existing `first_seen_at` when the pilot starts. Record collector outages and source coverage limitations. Event-level 15/30/60-minute visibility requires later event clustering and cannot be established by Phase 1 alone.
+Relevant-only article outputs:
+
+```text
+data/processed/vietnamese/vietnamese_clean.parquet
+data/processed/international/international_clean.parquet
+```
+
+Audit outputs:
+
+```text
+data/processed/vietnamese/vietnamese_clean_audit.parquet
+data/processed/international/international_clean_audit.parquet
+```
+
+These full Parquet files remain local/ignored by Git.
+
+Phase 2A validates and combines them using:
+
+```text
+src/integration/build_master.py
+```
+
+## Validated snapshot passed to Phase 2A
+
+Vietnamese audit:
+
+```text
+1,259 rows
+```
+
+Vietnamese relevant-only:
+
+```text
+1,221 rows
+```
+
+International audit:
+
+```text
+185 rows
+```
+
+International relevant-only:
+
+```text
+2 rows
+```
+
+The sparse international relevant count is preserved as an observed limitation rather than being artificially increased.
+
+## Phase 1 completion status
+
+- [x] Vietnamese collection/cleaning implementation completed
+- [x] International collection/cleaning implementation completed
+- [x] Raw/candidate records preserved
+- [x] Relevance audit outputs produced
+- [x] Relevant-only outputs produced
+- [x] Shared 20-column schema aligned
+- [x] Timestamp semantics aligned
+- [x] `raw_payload_ref` traceability completed for the finalized Phase 1 outputs
+- [x] Prospective/backfill semantics separated
+- [x] Small review samples committed
+- [x] Final outputs successfully consumed and validated by Phase 2A
+
+Phase 1 is complete.
+
+Next:
+
+```text
+team_work/phases/phase2_processing/phase2a_master_integration/
+```
