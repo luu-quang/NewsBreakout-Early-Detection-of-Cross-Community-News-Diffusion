@@ -26,7 +26,7 @@ Only `title` and `description` are currently available as comparison text. Full 
 This is an independent implementation for later comparison. Before finishing and freezing the first working version, do not inspect:
 
 - `src/deduplication/annotate_duplicates.py`;
-- `team_work/phases/phase2_dedup_event_clustering/IMPLEMENTATION.md`;
+- `team_work/phases/phase2_processing/phase2b_dedup_syndication/IMPLEMENTATION.md`;
 - our implementation-specific QC samples or family summaries; or
 - our populated duplicate assignments in any previously generated dedup output.
 
@@ -108,7 +108,7 @@ The `data/processed/` tree is ignored by Git. Do not force-add this Parquet file
 Create a small pair-level QC CSV under:
 
 ```text
-team_work/phases/phase2_dedup_event_clustering/sample_output/
+team_work/phases/phase2_processing/phase2b_dedup_syndication/sample_output/
 ```
 
 Use a teammate-specific filename so the two implementations can coexist during comparison. At minimum, each QC row must contain:
