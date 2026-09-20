@@ -197,7 +197,8 @@ def main() -> None:
     parser.add_argument("--input", default=None)
     parser.add_argument("--audit-output", default=None)
     parser.add_argument("--output", default=None)
-    parser.add_argument("--sample-output", default=None)
+    parser.add_argument("--audit-sample-output", "--sample-output", dest="audit_sample_output", default=None)
+    parser.add_argument("--relevant-sample-output", default=None)
     parser.add_argument("--sample-size", type=int, default=50)
     parser.add_argument("--pilot-start", default=None, help="Shared pilot T_start in ISO 8601 form.")
     args = parser.parse_args()
@@ -208,12 +209,14 @@ def main() -> None:
     input_path = Path(args.input or f"data/raw/international/international_{raw_suffix}.parquet")
     audit_path = Path(args.audit_output or f"data/processed/international/international_{clean_suffix}_audit.parquet")
     output_path = Path(args.output or f"data/processed/international/international_{clean_suffix}.parquet")
-    sample_path = Path(args.sample_output or f"team_work/phases/phase1_collection_cleaning/international_team/sample_output/sample_intl_{clean_suffix}.csv")
+    sample_prefix = "sample_intl_historical" if historical else "sample_intl"
+    audit_sample_path = Path(args.audit_sample_output or f"team_work/phases/phase1_collection_cleaning/international_team/sample_output/{sample_prefix}_audit.csv")
+    relevant_sample_path = Path(args.relevant_sample_output or f"team_work/phases/phase1_collection_cleaning/international_team/sample_output/{sample_prefix}_relevant.csv")
     if not input_path.exists():
         raise SystemExit(f"No raw candidates found at {input_path}. Run collect_intl.py first.")
 
     audit_df = clean(pd.read_parquet(input_path))
-    for path in (audit_path, output_path, sample_path):
+    for path in (audit_path, output_path, audit_sample_path, relevant_sample_path):
         path.parent.mkdir(parents=True, exist_ok=True)
     audit_df.to_parquet(audit_path, index=False)
 
@@ -222,14 +225,17 @@ def main() -> None:
     ].sort_values("first_seen_at").drop_duplicates(subset=["canonical_url"], keep="first")
     final_df = filter_pilot_window(relevant, args.pilot_start)[SHARED_SCHEMA]
     final_df.to_parquet(output_path, index=False)
-    review_sample(audit_df, max(1, min(args.sample_size, 100))).to_csv(sample_path, index=False)
+    sample_size = max(1, min(args.sample_size, 100))
+    review_sample(audit_df, sample_size).to_csv(audit_sample_path, index=False)
+    final_df[SHARED_SCHEMA].head(sample_size).to_csv(relevant_sample_path, index=False)
 
     counts = audit_df["vietnam_relevance"].value_counts().to_dict()
     print(f"Audited rows : {len(audit_df):,} (True={counts.get(True, 0):,}, False={counts.get(False, 0):,})")
     print(f"Final rows   : {len(final_df):,}")
     print(f"Audit output : {audit_path}")
     print(f"Final output : {output_path}")
-    print(f"Review sample: {sample_path}")
+    print(f"Audit sample : {audit_sample_path}")
+    print(f"Relevant sample: {relevant_sample_path}")
 
 
 if __name__ == "__main__":
