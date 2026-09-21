@@ -1,0 +1,36 @@
+{
+  "stage": "Phase 2B - Duplicate and Syndication Detection",
+  "implementation": "Independent implementation (Teammate)",
+  "input_path": "D:/fund_ds/NewsBreakout-Early-Detection-of-Cross-Community-News-Diffusion/data/processed/master/articles_master.parquet",
+  "input_sha256": "b021a43395a46af3ca36586b1042b061c644e90a92178a9b9d5779c11ea156f3",
+  "input_rows": 1223,
+  "output_path": "D:/fund_ds/NewsBreakout-Early-Detection-of-Cross-Community-News-Diffusion/data/processed/master/articles_dedup.parquet",
+  "output_sha256": "9c51b0fc3630a3aa07d5dc7cf5e812d96a6054bcf57fcef85cdbff9f98cf9f36",
+  "output_rows": 1223,
+  "metrics": {
+    "total_articles": 1223,
+    "assigned_articles": 7,
+    "singleton_articles": 1216,
+    "total_families": 3,
+    "exact_duplicate_families": 1,
+    "syndicated_families": 2,
+    "family_size_distribution": {
+      "2": 2,
+      "3": 1
+    },
+    "largest_family_size": 3,
+    "largest_family_id": "fam_synd_ac22e12c0bde"
+  },
+  "qc_counts": {
+    "total_reviewed_pairs": 44,
+    "category_distribution": {
+      "positive_exact_duplicate": 1,
+      "positive_syndicated_copy": 3,
+      "rejected_borderline": 10,
+      "recall_probe": 10,
+      "same_event_independent": 10,
+      "unrelated_control": 10,
+      "largest_family": 0
+    }
+  }
+}
