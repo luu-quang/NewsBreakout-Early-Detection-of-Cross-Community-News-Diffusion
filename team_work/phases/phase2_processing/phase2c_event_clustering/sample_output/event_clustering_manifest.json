@@ -55,8 +55,8 @@
     }
   },
   "sweep_settings_evaluated": 24,
-  "embed_time_seconds": 44.52,
-  "cluster_time_seconds": 0.15,
-  "code_base_revision": "3442f01edd5cc506cc981fb496d3e71e831db5f6",
-  "timestamp": "2026-09-21T14:28:08.073935+00:00"
+  "embed_time_seconds": 0.03,
+  "cluster_time_seconds": 0.1,
+  "code_base_revision": "3abe1b6ef05ee6618f7365cd9997fb4c0e9c3c58",
+  "timestamp": "2026-09-21T14:51:21.521431+00:00"
 }

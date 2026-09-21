@@ -110,6 +110,16 @@ def test_clean_text_unescapes_html_before_embedding():
     assert clean_text(float("nan")) == ""
 
 
+def test_clean_text_treats_pd_na_as_empty():
+    """Regression: pd.NA (nullable string dtype) must not be stringified to '<NA>'."""
+    assert clean_text(pd.NA) == ""
+    assert clean_text(pd.NaT) == ""
+    df = make_df([{"id": "a", "title": "T", "desc": "d"}])
+    df["title"] = df["title"].astype("string")
+    df["description"] = pd.Series([pd.NA], dtype="string")
+    assert build_texts(df) == ["T"]
+
+
 def test_build_texts_uses_cleaned_title_and_description():
     df = make_df([{"id": "a", "title": "A &quot;b&quot;", "desc": "  mô   tả "}, {"id": "b", "title": "T", "desc": ""}])
     df.loc[1, "description"] = None
@@ -311,8 +321,8 @@ def test_pipeline_end_to_end_on_synthetic_input(tmp_path):
 # ── artifact tests on the regenerated outputs ────────────────────────────────
 
 needs_outputs = pytest.mark.skipif(
-    not (DEDUP_INPUT.is_file() and CLUSTERED_OUTPUT.is_file()),
-    reason="local Phase 2B/2C parquet files not present",
+    not (DEDUP_INPUT.is_file() and CLUSTERED_OUTPUT.is_file() and MANIFEST_JSON.is_file()),
+    reason="Phase 2B/2C parquet files or Phase 2C sample_output not present",
 )
 
 

@@ -26,7 +26,7 @@ def clean_text(value: object) -> str:
 
     Only used to build embedding input; the article columns themselves are never modified.
     """
-    if value is None or (isinstance(value, float) and np.isnan(value)):
+    if value is None or value is pd.NA or value is pd.NaT or (isinstance(value, float) and np.isnan(value)):
         return ""
     text = html.unescape(str(value))
     text = unicodedata.normalize("NFC", text)

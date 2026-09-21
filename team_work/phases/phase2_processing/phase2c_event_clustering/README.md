@@ -61,7 +61,7 @@ The sweep only reports cluster **shape** (size, span, cohesion, publisher mix). 
 | `event_clusters_qc.csv` | 120 deterministic review pairs, `manual_label` blank |
 | `threshold_sweep.csv` | threshold × window × linkage comparison |
 
-`data/processed/master/articles_clustered.parquet` stays local (ignored). Regenerate with:
+`data/processed/master/articles_clustered.parquet` is the frozen **Phase 2C → analysis handoff artifact** (tracked; its SHA-256 and the code revision that produced it are recorded in `event_clustering_manifest.json`). Regenerate with:
 
 ```powershell
 python -m src.event_clustering.pipeline
