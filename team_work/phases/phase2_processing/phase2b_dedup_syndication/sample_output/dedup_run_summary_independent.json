@@ -1,0 +1,48 @@
+{
+  "input_path": "data/processed/master/articles_master.parquet",
+  "input_rows": 1223,
+  "input_size_bytes": 480461,
+  "input_sha256": "b021a43395a46af3ca36586b1042b061c644e90a92178a9b9d5779c11ea156f3",
+  "run_date_utc": "2026-09-21T06:53:24Z",
+  "code_revision": "a27f8c10180d40195af92146d5dcaeff68f99f7e+uncommitted-changes",
+  "total_articles": 1223,
+  "articles_in_families": 4,
+  "singleton_articles": 1219,
+  "total_families": 2,
+  "exact_duplicate_families": 0,
+  "syndicated_copy_families": 2,
+  "family_size_distribution": {
+    "2": 2
+  },
+  "largest_family": {
+    "duplicate_family_id": "dupfam_effca3d27c6d",
+    "size": 2
+  },
+  "candidate_pairs_scored": 26547,
+  "qc_pairs_total": 38,
+  "qc_pairs_by_bucket": {
+    "POSITIVE_SYNDICATED_COPY": 2,
+    "PREDICTED_SAME_EVENT_INDEPENDENT": 4,
+    "RECALL_PROBE_HIGH_TITLE_LOW_DESC": 14,
+    "REJECTED_BORDERLINE": 6,
+    "UNRELATED_CONTROL": 12
+  },
+  "thresholds": {
+    "DESC_COPY_THRESHOLD": 0.6,
+    "MIN_DESC_TOKENS": 6,
+    "MAX_HOURS_APART": 168.0,
+    "NUMBER_CONFLICT_JACCARD": 0.5,
+    "SAME_EVENT_TITLE": 0.5,
+    "SAME_EVENT_DESC": 0.4,
+    "MIN_SHARED_SHINGLES": 2,
+    "MAX_SHINGLE_DF": 60
+  },
+  "checks": {
+    "row_count_equal": true,
+    "column_order_frozen": true,
+    "non_family_fields_unchanged": true,
+    "written_file_roundtrip_ok": true,
+    "every_family_has_2plus_articles": true,
+    "rerun_identical_assignments": true
+  }
+}

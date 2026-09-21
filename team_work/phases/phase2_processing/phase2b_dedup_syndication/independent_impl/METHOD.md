@@ -21,7 +21,9 @@ Cost on the 1,223-row snapshot: about 1.4 s, ~270 MB peak; 26,547 candidate pair
 Input `data/processed/master/articles_master.parquet`, 1,223 rows, 480,461 bytes,
 SHA-256 `b021a433…156f3` (matches the Phase 2A manifest). Each run records path, rows, size,
 hash, UTC run date and code revision in `sample_output/dedup_run_summary_independent.json`.
-The recorded revision is the commit of the frozen code (a `+uncommitted-changes` suffix would mean the working tree differed from it).
+The recorded revision is the frozen code commit `a27f8c1`. The `+uncommitted-changes` suffix in the summary is an
+artifact: the script's dirty check also counts its own not-yet-committed output files, so it appears on
+every run that produces new outputs; the code itself is identical to `a27f8c1` (verified by `git diff`).
 
 ## Method
 
