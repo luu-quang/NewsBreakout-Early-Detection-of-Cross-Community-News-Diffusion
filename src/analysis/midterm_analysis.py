@@ -379,7 +379,7 @@ def fig5_qc(by_stratum: pd.DataFrame, pattern: pd.DataFrame, merged: pd.DataFram
     ax1.tick_params(length=0)
     ax1.xaxis.grid(True, color=GRID, linewidth=0.8)
     ax1.set_axisbelow(True)
-    ax1.set_title("Manual label by sampling stratum", loc="left", fontsize=12)
+    ax1.set_title("Provisional label by sampling stratum", loc="left", fontsize=12)
 
     p = pattern[pattern["failure_pattern"] != "NONE"].sort_values("total")
     ax2.barh(p["failure_pattern"].str.replace("_", " ").str.title(), p["total"], color=INK_2, height=0.6)  # neutral: blue/orange are reserved for labels in the left panel
@@ -395,7 +395,7 @@ def fig5_qc(by_stratum: pd.DataFrame, pattern: pd.DataFrame, merged: pd.DataFram
     n_ = bs.loc["INTER_CLUSTER_NEAR"]
     _title(
         fig,
-        "Manual QC of 50 pairs: weather series and same-type incidents drive the errors",
+        "Provisional QC screening of 50 pairs: weather series and same-type incidents drive the errors",
         f"Weakest links: {int(w['DIFFERENT_EVENT'])}/{int(w['total'])} look like different events. Nearest cross-event pairs: {int(n_['SAME_EVENT'])}/{int(n_['total'])} look like the same event. Labels are provisional.",
     )
     fig.subplots_adjust(top=0.82, wspace=0.55, bottom=0.2)
