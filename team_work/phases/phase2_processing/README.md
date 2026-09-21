@@ -82,7 +82,7 @@ Duplicate families and event clusters are not the same thing.
 
 ## Data policy
 
-Large files under `data/raw/`, `data/interim/`, and `data/processed/` remain local and ignored by Git.
+Large files under `data/raw/`, `data/interim/`, and `data/processed/` remain local and ignored by Git, except `data/processed/master/articles_master.parquet`, which is tracked as the frozen Phase 2A handoff snapshot.
 
 Git should contain:
 - source code;

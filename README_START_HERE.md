@@ -67,7 +67,7 @@ team_work/phases/phase1_collection_cleaning/international_team/code/
 
 Phase 1 produces cleaned relevant-only outputs and audit outputs under `data/processed/`.
 
-Large datasets are intentionally ignored by Git.
+Large datasets are intentionally ignored by Git, except `data/processed/master/articles_master.parquet`, which is tracked as the frozen Phase 2A handoff snapshot.
 
 ## 4. Phase 2A — build the master dataset
 

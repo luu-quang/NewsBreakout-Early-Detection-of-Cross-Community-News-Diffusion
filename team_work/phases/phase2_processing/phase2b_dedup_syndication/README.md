@@ -101,7 +101,7 @@ Produce this local output:
 data/processed/master/articles_dedup.parquet
 ```
 
-The `data/processed/` tree is ignored by Git. Do not force-add this Parquet file.
+The Phase 2B output `data/processed/master/articles_dedup.parquet` remains ignored by Git. Do not force-add this output file. The frozen Phase 2A input `articles_master.parquet` is the tracked exception.
 
 ## Required tracked QC artifacts
 
@@ -223,7 +223,7 @@ Phase 2B may annotate duplicate families only. Do not treat duplicate families a
 1. Update local `main` and confirm it is the latest shared baseline.
 2. Create your own branch from that `main`. Do not branch from, merge from, or continue our implementation branch.
 3. Record the master-input SHA-256 before running your method.
-4. Keep large raw, interim, and processed datasets ignored.
+4. Keep large raw, interim, and processed datasets ignored, except the frozen Phase 2A `articles_master.parquet` handoff snapshot explicitly tracked by the repository.
 5. Stage only intended source code, documentation, and small QC or summary artifacts.
 6. Review `git status` and the staged diff for accidental data, Phase 1, event-clustering, or unrelated changes.
 7. Do not merge your branch until the independent comparison and manual disagreement review are complete.

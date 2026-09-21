@@ -179,7 +179,7 @@ duplicate / syndication annotation
 
 ## 9. Snapshot identity and teammate handoff
 
-Because the full Parquet is ignored by Git, the exact master snapshot must be transferred directly to any teammate implementing Phase 2B.
+The frozen `articles_master.parquet` snapshot is tracked in Git at `data/processed/master/articles_master.parquet`, so teammates implementing Phase 2B should obtain the exact snapshot by pulling the repository and verify its SHA-256 before use.
 
 Before comparison, everyone must verify the same SHA-256:
 
