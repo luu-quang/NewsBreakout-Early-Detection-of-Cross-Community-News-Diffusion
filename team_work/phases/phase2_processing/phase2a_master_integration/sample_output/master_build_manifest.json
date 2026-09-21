@@ -1,0 +1,15 @@
+﻿{
+    "stage":  "Phase 2A - Master Dataset Integration",
+    "builder":  "src/integration/build_master.py",
+    "repository_revision":  "77198114826f791c1c53fc94561a60f3e1d13415",
+    "master_output":  "data/processed/master/articles_master.parquet",
+    "master_rows":  1223,
+    "domestic_rows":  1221,
+    "international_rows":  2,
+    "master_sha256":  "b021a43395a46af3ca36586b1042b061c644e90a92178a9b9d5779c11ea156f3",
+    "audit_output":  "data/processed/master/articles_audit.parquet",
+    "audit_rows":  1444,
+    "audit_sha256":  "8c94f4b3acb464c475cc5f29594c18f612c6dfa2fb362ccecbcf59b6daaeee01",
+    "next_stage":  "Phase 2B - Duplicate and Syndication Detection",
+    "next_stage_input":  "data/processed/master/articles_master.parquet"
+}
