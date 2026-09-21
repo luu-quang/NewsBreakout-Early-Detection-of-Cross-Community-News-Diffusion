@@ -62,7 +62,7 @@ intentionally preserved as independent reports for Phase 2C event clustering.
    member `article_id`s, so ids do not depend on row order. Families with ≥ 4 members or
    edge density < 0.5 are flagged for review (none exist in this snapshot). Singletons and
    independent reports keep `duplicate_family_id` null.
-7. **Output.** `articles_dedup.parquet` (git-ignored): same rows, order and 19 other columns;
+7. **Output.** `articles_dedup.parquet` (frozen Phase 2B handoff artifact published for Phase 2C): same rows, order and 19 other columns;
    only `duplicate_family_id` populated. Fails if the input schema/order differs from the
    frozen 20 columns or `article_id` is missing/duplicated.
 
