@@ -117,7 +117,7 @@ data/processed/vietnamese/vietnamese_clean_audit.parquet
 data/processed/international/international_clean_audit.parquet
 ```
 
-Large data files under `data/raw/`, `data/interim/`, and `data/processed/` are intentionally ignored by Git.
+Large data files under `data/raw/`, `data/interim/`, and `data/processed/` are intentionally ignored by Git, except `data/processed/master/articles_master.parquet`, which is tracked as the frozen Phase 2A handoff snapshot.
 
 ## Phase 2A — Master Integration
 
