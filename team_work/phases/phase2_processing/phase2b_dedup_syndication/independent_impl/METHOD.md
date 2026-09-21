@@ -1,9 +1,9 @@
 # Phase 2B — Independent duplicate / syndication method
 
-Status: **final precision-first baseline (2026-09-21), not yet compared** with the other
-implementation. The first version was written without inspecting that implementation, its
-notes, QC files, or assignments. This final patch adds conservative canonical-URL evidence to
-exact matching and leaves the original syndication rule and thresholds unchanged.
+Status: **final precision-first baseline (2026-09-21), selected after comparison with the
+alternative Phase 2B implementation.** The first version was written independently. The final
+baseline includes conservative canonical-URL evidence for exact matching and leaves the original
+syndication rule and thresholds unchanged.
 
 ## Run
 
@@ -36,8 +36,8 @@ intentionally preserved as independent reports for Phase 2C event clustering.
    Vietnamese diacritics are **kept** (tone marks distinguish words). Tokens are whitespace
    syllables; features are **word bigrams** (a single token if the text has only one word).
 2. **Exact duplicates first.** Either the same non-empty normalized `canonical_url`, or an
-   identical normalized title *and* identical normalized description (two empty descriptions
-   count as identical), gives `EXACT_DUPLICATE`. URL normalization is internal matching evidence:
+   identical non-empty normalized title *and* identical non-empty normalized description, gives
+   `EXACT_DUPLICATE`. URL normalization is internal matching evidence:
    it lowercases scheme/host, removes a leading `www.`, fragments, trailing slashes, and common
    tracking parameters (`utm_*`, `fbclid`, `gclid`). It does not alter the stored URL columns.
 3. **Candidate generation / blocking.** Inverted index over word bigrams (title ∪ description).
@@ -62,7 +62,7 @@ intentionally preserved as independent reports for Phase 2C event clustering.
    member `article_id`s, so ids do not depend on row order. Families with ≥ 4 members or
    edge density < 0.5 are flagged for review (none exist in this snapshot). Singletons and
    independent reports keep `duplicate_family_id` null.
-7. **Output.** `articles_dedup.parquet` (git-ignored): same rows, order and 19 other columns;
+7. **Output.** `articles_dedup.parquet` (frozen Phase 2B handoff artifact published for Phase 2C): same rows, order and 19 other columns;
    only `duplicate_family_id` populated. Fails if the input schema/order differs from the
    frozen 20 columns or `article_id` is missing/duplicated.
 

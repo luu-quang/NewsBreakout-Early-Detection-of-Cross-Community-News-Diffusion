@@ -57,8 +57,13 @@ def normalize(text: object) -> str:
 
     Diacritics are kept: Vietnamese tone marks distinguish words.
     """
-    if text is None or (isinstance(text, float) and pd.isna(text)):
+    if text is None:
         return ""
+    try:
+        if pd.isna(text):
+            return ""
+    except (TypeError, ValueError):
+        pass
     s = html.unescape(str(text))
     s = unicodedata.normalize("NFC", s).lower()
     s = TAG_RE.sub(" ", s)
@@ -236,13 +241,13 @@ def analyze(df: pd.DataFrame) -> dict:
                     "identical_normalized_canonical_url",
                 )
 
-    # Stage 1b: exact duplicates by identical normalized title AND description.
-    # Two empty descriptions count as identical text when the title is non-empty.
+    # Stage 1b: exact duplicates by identical non-empty normalized title AND description.
     text_groups: dict[tuple, list[int]] = defaultdict(list)
     for f in feats:
-        text_groups[(f["title"], f["desc"])].append(f["pos"])
+        if f["title"] and f["desc"]:
+            text_groups[(f["title"], f["desc"])].append(f["pos"])
     for members in text_groups.values():
-        if len(members) > 1 and feats[members[0]]["title"]:
+        if len(members) > 1:
             for i, j in combinations(sorted(members), 2):
                 edges.setdefault(
                     (i, j),
