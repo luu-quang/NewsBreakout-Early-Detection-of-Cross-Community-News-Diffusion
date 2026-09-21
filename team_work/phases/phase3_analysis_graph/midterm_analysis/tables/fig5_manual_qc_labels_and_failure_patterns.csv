@@ -1,0 +1,9 @@
+﻿group,SAME_EVENT,DIFFERENT_EVENT,UNCERTAIN,total,table
+INTER_CLUSTER_NEAR,8,12,0,20,by_stratum
+INTRA_CLUSTER_WEAKEST_LINK,11,13,6,30,by_stratum
+WEATHER_SERIES,2,12,1,15,by_failure_pattern
+GENERIC_INCIDENT,0,9,1,10,by_failure_pattern
+NONE,8,1,0,9,by_failure_pattern
+SAME_STORY_FRAGMENTED,8,0,0,8,by_failure_pattern
+SAME_TOPIC_DIFFERENT_EVENT,0,2,4,6,by_failure_pattern
+NEWS_DIGEST,1,1,0,2,by_failure_pattern

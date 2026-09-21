@@ -1,0 +1,43 @@
+{
+  "input_path": "data/processed/master/articles_clustered.parquet",
+  "input_sha256": "90fd7938277b7f4138e12fd14be6ee328c854734ca9db2240da5d367b67412af",
+  "n_articles": 1223,
+  "event_size": {
+    "total_events": 985,
+    "singleton_events": 811,
+    "multi_article_events": 174
+  },
+  "publishers": {
+    "dominant_publisher": "vietnamnet.vn",
+    "dominant_share": 0.8177,
+    "n_publishers": 6,
+    "hhi_articles": 0.6776
+  },
+  "cross_publisher_events": {
+    "n": 26,
+    "manual_verdicts": {
+      "SAME_EVENT": 15,
+      "DIFFERENT": 5,
+      "PLAUSIBLE": 3,
+      "MIXED": 3
+    }
+  },
+  "network": {
+    "n_edges": 10,
+    "max_edge_weight": 8,
+    "n_nodes": 6
+  },
+  "qc": {
+    "labelled_pairs": 50,
+    "weakest_link_different": 13,
+    "weakest_link_total": 30,
+    "near_pair_same_event_false_split": 8,
+    "near_pair_total": 20,
+    "weather_series_pairs": 15,
+    "label_counts": {
+      "DIFFERENT_EVENT": 25,
+      "SAME_EVENT": 19,
+      "UNCERTAIN": 6
+    }
+  }
+}

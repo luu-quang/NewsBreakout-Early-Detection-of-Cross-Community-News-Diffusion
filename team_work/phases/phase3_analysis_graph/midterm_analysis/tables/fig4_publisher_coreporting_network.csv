@@ -1,0 +1,11 @@
+﻿publisher_a,publisher_b,weight_all,weight_independent,events_a,events_b,shared_over_smaller_publisher_events
+dantri.com.vn,vietnamnet.vn,8,8,81,802,0.0988
+dantri.com.vn,tuoitre.vn,6,6,81,45,0.1333
+dantri.com.vn,thanhnien.vn,5,5,81,53,0.0943
+thanhnien.vn,vietnamnet.vn,5,5,53,802,0.0943
+tuoitre.vn,vietnamnet.vn,4,4,45,802,0.0889
+vietnamnet.vn,vnexpress.net,4,4,802,35,0.1143
+thanhnien.vn,tuoitre.vn,3,3,53,45,0.0667
+dantri.com.vn,vnexpress.net,3,2,81,35,0.0571
+thanhnien.vn,vnexpress.net,1,1,53,35,0.0286
+tuoitre.vn,vnexpress.net,1,1,45,35,0.0286

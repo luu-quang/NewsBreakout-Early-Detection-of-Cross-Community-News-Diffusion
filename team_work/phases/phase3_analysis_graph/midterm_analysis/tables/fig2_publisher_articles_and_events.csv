@@ -1,0 +1,7 @@
+﻿rank_by_articles,publisher_domain,n_articles,share_of_articles,n_distinct_events,n_multi_article_events,n_cross_publisher_events,articles_in_cross_publisher_events,share_articles_in_cross_publisher_events,articles_per_event
+1,vietnamnet.vn,1000,0.8177,802,158,15,18,0.018,1.247
+2,dantri.com.vn,84,0.0687,81,19,16,16,0.1905,1.037
+3,thanhnien.vn,56,0.0458,53,13,11,12,0.2143,1.057
+4,tuoitre.vn,45,0.0368,45,10,10,10,0.2222,1.0
+5,vnexpress.net,36,0.0294,35,7,7,8,0.2222,1.029
+6,asia.nikkei.com,2,0.0016,2,0,0,0,0.0,1.0

@@ -1,0 +1,8 @@
+﻿event_size_articles,n_events,share_of_events,n_articles,event_type
+1,811,0.8234,811,singleton
+2,135,0.1371,270,multi-article
+3,24,0.0244,72,multi-article
+4,8,0.0081,32,multi-article
+5,5,0.0051,25,multi-article
+6,1,0.001,6,multi-article
+7,1,0.001,7,multi-article
