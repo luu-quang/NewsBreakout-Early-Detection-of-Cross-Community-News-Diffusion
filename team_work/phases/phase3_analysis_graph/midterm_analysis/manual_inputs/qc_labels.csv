@@ -1,0 +1,51 @@
+﻿qc_row,stratum,left_article_id,right_article_id,manual_label,failure_pattern,rationale
+0,INTRA_CLUSTER_WEAKEST_LINK,dc116c4ddadfebd1,8b26e66b9f645a84,UNCERTAIN,WEATHER_SERIES,"Same storm (no.4), different phases 3 days apart; weather storyline"
+1,INTRA_CLUSTER_WEAKEST_LINK,0a51817f8cd346db,572ebbfb822ce35d,SAME_EVENT,NONE,"Same Xoi Lac TV illegal-streaming case, two defendants"
+2,INTRA_CLUSTER_WEAKEST_LINK,a2b417de7902e09f,d2867ef69b042231,DIFFERENT_EVENT,GENERIC_INCIDENT,Landslide in Nghe An vs crack on hill in Thanh Hoa: different places
+3,INTRA_CLUSTER_WEAKEST_LINK,88a7d7c9797f17bc,d05f4b924fdca108,DIFFERENT_EVENT,GENERIC_INCIDENT,Two unrelated truck accidents (Lao Cai vs Khanh Hoa)
+4,INTRA_CLUSTER_WEAKEST_LINK,a309b88d087b50a6,3f7db849b7502ef8,DIFFERENT_EVENT,GENERIC_INCIDENT,Different traffic-fine cases (Hai Phong truck vs bus 174m dong fine)
+5,INTRA_CLUSTER_WEAKEST_LINK,6c4abbe0225af31e,d87bb03aa0428fce,DIFFERENT_EVENT,GENERIC_INCIDENT,Two different apartment/house fires in Hanoi
+6,INTRA_CLUSTER_WEAKEST_LINK,951fa0f137c57831,229e6a3ddb48f8cc,SAME_EVENT,NONE,Same Vinh Long bones-in-car investigation
+7,INTRA_CLUSTER_WEAKEST_LINK,d6fb0d0caa2cd83b,3e867216c0aec283,UNCERTAIN,SAME_TOPIC_DIFFERENT_EVENT,Same FIFA ASEAN Cup run-up but different angles (naturalised players vs defence)
+8,INTRA_CLUSTER_WEAKEST_LINK,b52554bdecf06ae8,5f94c1a57a290f6c,DIFFERENT_EVENT,NEWS_DIGEST,Daily news digests of different days (22/8 vs 23/8)
+9,INTRA_CLUSTER_WEAKEST_LINK,f7826999aad1e45e,d6fb5d659b1e4fdb,DIFFERENT_EVENT,GENERIC_INCIDENT,Two different fatal motorbike accidents in HCMC
+10,INTRA_CLUSTER_WEAKEST_LINK,45f4fe952b8b3ad9,ca657e25ca4ff2ec,UNCERTAIN,GENERIC_INCIDENT,"Cars hitting motorbikes in HCMC; 5 bikes at bar vs 3 bikes at red light, likely different incidents"
+11,INTRA_CLUSTER_WEAKEST_LINK,aa25e93e9415248a,70ead58afccac978,DIFFERENT_EVENT,WEATHER_SERIES,Weather digests for 1/9 vs 5/9
+12,INTRA_CLUSTER_WEAKEST_LINK,2bded7df1df9f911,545bc5305b21c916,SAME_EVENT,NONE,"Same holiday exodus (2/9 holiday, Hanoi gateways)"
+13,INTRA_CLUSTER_WEAKEST_LINK,f58bf3bb14409611,561781d29551b774,DIFFERENT_EVENT,GENERIC_INCIDENT,Two unrelated assault cases in An Giang
+14,INTRA_CLUSTER_WEAKEST_LINK,a4c8d0155e6be40b,2f86eb617d8a61fb,DIFFERENT_EVENT,GENERIC_INCIDENT,Two unrelated assaults (Hanoi street vs drinking party)
+15,INTRA_CLUSTER_WEAKEST_LINK,cf09ff1af1b17e3d,60656a391f087d34,UNCERTAIN,SAME_TOPIC_DIFFERENT_EVENT,Both CSGT statements about tailgating clips; different clips
+16,INTRA_CLUSTER_WEAKEST_LINK,c4235d9cbae15be8,6dcc390d5516368f,SAME_EVENT,WEATHER_SERIES,Same tropical depression approaching central Vietnam on 13/9
+17,INTRA_CLUSTER_WEAKEST_LINK,268cbd7503a63edb,9731af589590127b,SAME_EVENT,NEWS_DIGEST,Digest 10/9 contains the same robbery arrest story
+18,INTRA_CLUSTER_WEAKEST_LINK,8ee5a58de68bff3e,b003ab5c1dff91f1,UNCERTAIN,SAME_TOPIC_DIFFERENT_EVENT,Both CSGT reporting on 2/9 holiday / tailgating enforcement; different articles
+19,INTRA_CLUSTER_WEAKEST_LINK,b9c4e98aff128330,af78eb23e5075dea,SAME_EVENT,NONE,Same Dong Nai triple-murder case (investigation vs indictment)
+20,INTRA_CLUSTER_WEAKEST_LINK,d015c23500965a82,59a74a883861e3a3,DIFFERENT_EVENT,SAME_TOPIC_DIFFERENT_EVENT,"UAV near Noi Bai vs Da Nang UAV zones: same topic, different events"
+21,INTRA_CLUSTER_WEAKEST_LINK,80235a2397c8f710,5c671d54bf58667d,SAME_EVENT,NONE,Same missing schoolgirl case (bridge slippers -> body found)
+22,INTRA_CLUSTER_WEAKEST_LINK,d371fe2c5b7a9dcd,8853128349c42e8f,SAME_EVENT,NONE,Same 29/8 holiday traffic jam at HCMC eastern gateway
+23,INTRA_CLUSTER_WEAKEST_LINK,7f0a62d5f0cc46d9,8adf97dbd49b9b5c,SAME_EVENT,WEATHER_SERIES,Same remnants of storm Saudel / storm no.5 on same day
+24,INTRA_CLUSTER_WEAKEST_LINK,8483bd25b42f5d78,b857c0037e997a65,SAME_EVENT,NONE,Same Vinh flood after 399mm rain (two VnExpress pieces)
+25,INTRA_CLUSTER_WEAKEST_LINK,b8d96fc90dee31b7,a13a4639ad6f1823,DIFFERENT_EVENT,GENERIC_INCIDENT,Two different mistaken bank-transfer stories
+26,INTRA_CLUSTER_WEAKEST_LINK,0eb0acbb96442210,1f0804b3e2a46a70,DIFFERENT_EVENT,GENERIC_INCIDENT,Two unrelated truck accidents in Nghe An / Thach An
+27,INTRA_CLUSTER_WEAKEST_LINK,121c64b6075a4780,9fd79c0b1bbdb840,UNCERTAIN,SAME_TOPIC_DIFFERENT_EVENT,Cambodia scam ring: individual case vs 100+ returnees; same story arc
+28,INTRA_CLUSTER_WEAKEST_LINK,13fe8239d4c47124,5c393a8c317fa7d3,SAME_EVENT,NONE,Same arrest of Deputy Minister Tran Van Thuan (news + analysis)
+29,INTRA_CLUSTER_WEAKEST_LINK,0316b34f5277161b,b131eb37dcf9b4dd,DIFFERENT_EVENT,SAME_TOPIC_DIFFERENT_EVENT,Hanoi old-apartment renewal vs Ring Road 1 demolition: same topic
+90,INTER_CLUSTER_NEAR,ec488781bcc0932e,ff9c31af0a933733,DIFFERENT_EVENT,WEATHER_SERIES,"Forecast 14/9 vs 15/9: correct split, different days"
+91,INTER_CLUSTER_NEAR,7073224129564935,08093ea1e160d1f5,SAME_EVENT,SAME_STORY_FRAGMENTED,Same Hanoi rain night 14-15/9 (forecast vs flooding report): false split
+92,INTER_CLUSTER_NEAR,4a39a2f2ba4e15a9,d28cfb8f44ccc628,DIFFERENT_EVENT,WEATHER_SERIES,Forecast 13/9 vs 10/9: correct split
+93,INTER_CLUSTER_NEAR,8a3e7ce1b6019e3e,ff9c31af0a933733,DIFFERENT_EVENT,WEATHER_SERIES,Forecast 20/9 vs 15/9: correct split
+94,INTER_CLUSTER_NEAR,ff75351fb53e7df4,e46ff5c8086409cd,SAME_EVENT,SAME_STORY_FRAGMENTED,Same ASEAN Cup title celebration on 26/8: false split
+95,INTER_CLUSTER_NEAR,7d75730c709be405,71be35ef07b05886,SAME_EVENT,SAME_STORY_FRAGMENTED,Same storm no.4 turning away on same day: false split
+96,INTER_CLUSTER_NEAR,e4715b06cec46154,ff75351fb53e7df4,DIFFERENT_EVENT,NONE,Celebration after 22/8 match vs after 26/8 title: correct split
+97,INTER_CLUSTER_NEAR,d8a396b954b09c4f,dd90d55fbca8ff38,DIFFERENT_EVENT,WEATHER_SERIES,Forecast 23/8 vs 17/9: correct split
+98,INTER_CLUSTER_NEAR,f57b55df8e109eb3,2fc2054db62d4f66,DIFFERENT_EVENT,WEATHER_SERIES,Holiday weather vs forecast 19/9: correct split
+99,INTER_CLUSTER_NEAR,350f88cd19d9645e,2fc2054db62d4f66,DIFFERENT_EVENT,WEATHER_SERIES,Forecast 30/8 vs 19/9: correct split
+100,INTER_CLUSTER_NEAR,70ead58afccac978,3716c04a309726f9,DIFFERENT_EVENT,WEATHER_SERIES,Forecast 5/9 vs 7/9: correct split
+101,INTER_CLUSTER_NEAR,3f4c7247c25ead5c,5333e815917bdc84,DIFFERENT_EVENT,WEATHER_SERIES,South rain 21-24/9 vs North rain: different regions/days
+102,INTER_CLUSTER_NEAR,c395f40971b8c204,bb184ea6e58339a2,SAME_EVENT,SAME_STORY_FRAGMENTED,Same early-season cold air front (two articles same day): false split
+103,INTER_CLUSTER_NEAR,3f4c7247c25ead5c,af46d511d41df674,DIFFERENT_EVENT,WEATHER_SERIES,South rain forecast vs forecast 18/9: different
+104,INTER_CLUSTER_NEAR,6ecea7e93d2fef96,a366bf4dcae5b299,SAME_EVENT,SAME_STORY_FRAGMENTED,Same start of tailgating fines on the expressway: false split
+105,INTER_CLUSTER_NEAR,9bbe7c39f2692e05,ed8a15e7da36f351,SAME_EVENT,SAME_STORY_FRAGMENTED,Same tailgating-fine rollout (CSGT explanation vs driver advice): false split
+106,INTER_CLUSTER_NEAR,2fc2054db62d4f66,af46d511d41df674,DIFFERENT_EVENT,WEATHER_SERIES,Forecast 19/9 vs 18/9: correct split
+107,INTER_CLUSTER_NEAR,c295ecb76bd51804,5333e815917bdc84,DIFFERENT_EVENT,WEATHER_SERIES,Rain outlook 13/9 vs later: different days
+108,INTER_CLUSTER_NEAR,b003ab5c1dff91f1,d06d7f6cfa44cca9,SAME_EVENT,SAME_STORY_FRAGMENTED,Same tailgating-fine rollout from 27/8: false split
+109,INTER_CLUSTER_NEAR,742b33e574c2d6d3,d8a396b954b09c4f,SAME_EVENT,SAME_STORY_FRAGMENTED,Same storm no.4 state on 23/8 (report vs forecast): false split

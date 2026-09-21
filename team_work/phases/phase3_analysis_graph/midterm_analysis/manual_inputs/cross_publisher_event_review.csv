@@ -1,0 +1,27 @@
+﻿event_cluster_id,inspection_verdict,inspection_note,highlighted
+evt_7d88f2e2523f,DIFFERENT,"Two provinces (Da Nang vs Quang Tri) finishing DNA sampling of martyr graves: same programme, different events",False
+evt_cc8d4c14c903,PLAUSIBLE,Likely the same HCMC house fire (5 rescued); publish dates 3 days apart,False
+evt_bd8426ef24d4,DIFFERENT,Thanh Hoa river flood vs Nha Trang temporary dam: unrelated,False
+evt_690a478e4007,MIXED,"Rain/forecast pieces; the 09-17 piece is an earlier forecast, the 3 pieces of 09-20 share the 400mm South-Central rain forecast",True
+evt_204c4296541b,DIFFERENT,"Hanoi flooding: student room flooded vs students wading to school: same topic, different stories",False
+evt_4fdca0aae8f4,SAME_EVENT,"Same 6,000 m3 of debris on Sam Son beach after floods",False
+evt_d980a91d4492,MIXED,"Two Nghe An landslide articles are one event, but the 200m-crack piece is a Thanh Hoa hill (QC pair 2)",True
+evt_52229615707b,SAME_EVENT,Hanoi chairman orders accountability for student who fell into drain,False
+evt_8372397093a9,SAME_EVENT,Vinh record 399mm rain and quick drainage,False
+evt_28284fada5b7,SAME_EVENT,Ore carrier (174-175k tonnes) in trouble off Quang Ngai; 3 publishers within ~3h,True
+evt_9e8c7c964cbd,SAME_EVENT,"Party chief/President departs for US-Canada. Also a Phase 2B duplicate family (syndicated copy), so excluded from the independent network",True
+evt_1717a7c157cd,SAME_EVENT,Buc Tuong x Rhyder collaboration,False
+evt_905493b56bab,PLAUSIBLE,"IELTS bonus-points policy: minister quote vs opinion piece; same debate, different article types",False
+evt_999f3ec12485,MIXED,Bus fined 174m after report to CSGT chief (2 pieces) vs alcohol/owner fine 70m and an unrelated Hai Phong truck fine,True
+evt_73749c945b8d,SAME_EVENT,No computer-based THPT exam pilot in 2027; near-identical headlines from 3 publishers,True
+evt_97dfc8706783,DIFFERENT,"Women's volleyball vs handball at the same Asian Games: same tournament, different events",True
+evt_4b34cba94edc,DIFFERENT,"Litter in Nhieu Loc canal vs fined dumpers in Tay Ninh: same theme, different events",False
+evt_e78c61455165,PLAUSIBLE,Both about the Vietnam-US cooperation context of the leader's visit,False
+evt_37807a2008c3,SAME_EVENT,HCMC autumn-leaf street,False
+evt_4da47432d789,SAME_EVENT,Search for witnesses of 1968 martyr graves in Go Vap; 3 publishers,False
+evt_833dd9b278ea,SAME_EVENT,Houthi attack on Riyadh,False
+evt_12d2d94d4b3f,SAME_EVENT,Women's football Vietnam v Thailand match previews,False
+evt_b989975ff971,SAME_EVENT,Con Dao medical centre merged into Hospital 115,False
+evt_61e7f2ae8669,SAME_EVENT,"Costumed ""Tang Monk"" group riding horses in HCMC car lane; 3 publishers",True
+evt_35200cc7220e,SAME_EVENT,Hang Ma street before Mid-Autumn,False
+evt_13986f343684,SAME_EVENT,"Car ploughing into crowd at Cho Quan, 7 arrested; 3 publishers within ~1h",True
