@@ -1,0 +1,62 @@
+{
+  "stage": "Phase 2C - Event Clustering",
+  "input_path": "data/processed/master/articles_dedup.parquet",
+  "input_sha256": "4d1b967a99a103c0e4ede002786e84f52cbe5c61bb011d878189cd7d4bc6244f",
+  "input_rows": 1223,
+  "output_path": "data/processed/master/articles_clustered.parquet",
+  "output_sha256": "90fd7938277b7f4138e12fd14be6ee328c854734ca9db2240da5d367b67412af",
+  "output_rows": 1223,
+  "parameters": {
+    "model_name": "paraphrase-multilingual-MiniLM-L12-v2",
+    "embedding_dim": 384,
+    "text_cleaning": "html.unescape + NFC + whitespace collapse (embedding input only)",
+    "distance_metric": "cosine",
+    "linkage": "complete",
+    "distance_threshold": 0.3,
+    "window_days": 5.0,
+    "event_time": "published_at, fallback first_seen_at",
+    "singleton_events": "assigned (event_cluster_id never null)"
+  },
+  "time_source_counts": {
+    "published_at": 1221,
+    "first_seen_at": 2
+  },
+  "clustering_units": {
+    "n_units": 1221,
+    "n_duplicate_families_collapsed": 2,
+    "articles_in_duplicate_families": 4
+  },
+  "metrics": {
+    "total_articles": 1223,
+    "total_events": 985,
+    "singleton_events": 811,
+    "multi_article_events": 174,
+    "articles_in_multi_article_events": 412,
+    "cross_publisher_events": 26,
+    "events_ge_10_articles": 0,
+    "largest_event_size": 7,
+    "largest_event_id": "evt_a61e40d393af",
+    "max_span_days": 4.996,
+    "mean_span_days_multi": 1.535,
+    "mean_intra_similarity_multi": 0.7865,
+    "multi_article_event_size_distribution": {
+      "2": 135,
+      "3": 24,
+      "4": 8,
+      "5": 5,
+      "6": 1,
+      "7": 1
+    },
+    "qc_pairs_by_stratum": {
+      "INTER_CLUSTER_NEAR": 30,
+      "INTRA_CLUSTER_CROSS_PUB": 30,
+      "INTRA_CLUSTER_SAME_PUB": 30,
+      "INTRA_CLUSTER_WEAKEST_LINK": 30
+    }
+  },
+  "sweep_settings_evaluated": 24,
+  "embed_time_seconds": 44.52,
+  "cluster_time_seconds": 0.15,
+  "code_base_revision": "3442f01edd5cc506cc981fb496d3e71e831db5f6",
+  "timestamp": "2026-09-21T14:28:08.073935+00:00"
+}
