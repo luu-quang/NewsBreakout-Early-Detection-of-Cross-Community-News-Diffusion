@@ -1,0 +1,40 @@
+﻿review_id,item_type,reference,stratum_or_event,publishers,context,allowed_human_labels,human_label,reviewer,comment
+1,QC_PAIR,qc_row 0,INTRA_CLUSTER_WEAKEST_LINK,vietnamnet.vn | vietnamnet.vn,"L: Bão số 4 dị thường xoay hướng liên tục, mưa lũ miền Bắc khó lường -- Bão số 4 đang di chuyển rất phức tạp, liên tục đổi hướng trên Vịnh Bắc Bộ. Từ nay đến hết ngày 24/8, Đông Bắc Bộ có mưa lớn diện rộng, nguy cơ cao xảy ra lũ quét, sạt lở đất và ngập úng.
+R: Vùng áp thấp từ bão số 4 Narra đang tan, miền Bắc sắp đón đợt mưa lớn mới -- Bão số 4 Narra đã suy yếu thành vùng áp thấp trên đất liền Trung Quốc. Miền Bắc tiếp tục có mưa rào và giông, trước khi có khả năng đón một đợt mưa lớn mới vào cuối tháng 8.",SAME_EVENT / DIFFERENT_EVENT / UNCERTAIN,,,
+2,QC_PAIR,qc_row 7,INTRA_CLUSTER_WEAKEST_LINK,dantri.com.vn | dantri.com.vn,"L: Vì sao tuyển Việt Nam không gọi 2 cầu thủ mới nhập tịch dự FIFA ASEAN Cup? -- (Dân trí) - Dù mới có quốc tịch Việt Nam nhưng Olaha Mạnh Đức và Lương Chí Khải vẫn chưa thể khoác áo đội tuyển Việt Nam tham dự giải FIFA ASEAN Cup 2026.
+R: Nỗi lo lớn của đội tuyển Việt Nam trước thềm FIFA ASEAN Cup -- (Dân trí) - Trước thềm giải FIFA ASEAN Cup 2026, đội tuyển Việt Nam đang đối diện nỗi lo lắng ở hàng thủ khi Thành Chung, Văn Hậu không thể tham dự.",SAME_EVENT / DIFFERENT_EVENT / UNCERTAIN,,,
+3,QC_PAIR,qc_row 10,INTRA_CLUSTER_WEAKEST_LINK,vietnamnet.vn | vietnamnet.vn,"L: Ô tô bất ngờ tông 5 xe máy trước quán nhậu, người dân giận dữ chặn đầu phương tiện -- Chiếc ô tô bất ngờ lao thẳng vào loạt xe máy trước quán nhậu gần cầu Chữ Y (TPHCM), hất văng nhiều xe xa hơn 10m và khiến 2 người bị thương.
+R: Ô tô Mercedes tông liên hoàn 3 xe máy dừng đèn đỏ, kéo lê 10m ở TPHCM -- Đang dừng chờ đèn đỏ ở TPHCM, 3 xe máy bất ngờ bị ô tô Mercedes lao tới tông mạnh, kéo lê khoảng 10m. Vụ tai nạn khiến một người bị gãy chân, nhiều phương tiện hư hỏng nặng, giao thông qua khu vực ùn ",SAME_EVENT / DIFFERENT_EVENT / UNCERTAIN,,,
+4,QC_PAIR,qc_row 15,INTRA_CLUSTER_WEAKEST_LINK,vietnamnet.vn | vietnamnet.vn,"L: Clip ô tô con đột ngột rời cao tốc, tài xế xe tải phanh &apos;cháy đường&apos; -- Theo Cục CSGT (Bộ Công an) đơn vị đã xác minh, làm rõ về một trường ô tô con rời đường cao tốc trái quy định, tiềm ẩn gây tai nạn giao thông.
+R: Ô tô bán tải chạy 78km/h, bám sau xe tải chưa đầy 25m trên cao tốc -- Theo Cục CSGT, tài xế ô tô bán tải có đủ điều kiện chuyển làn từ xa nhưng vẫn bám sát đuôi xe tải rồi mới chuyển làn, tiềm ẩn nguy cơ tai nạn nếu xe phía trước phanh đột ngột.",SAME_EVENT / DIFFERENT_EVENT / UNCERTAIN,,,
+5,QC_PAIR,qc_row 18,INTRA_CLUSTER_WEAKEST_LINK,vietnamnet.vn | vietnamnet.vn,"L: Ngày thứ ba nghỉ lễ 2/9, CSGT xử lý 18.738 tài xế vi phạm, có 1 trường hợp không giữ khoảng cách -- Trong ngày thứ ba của kỳ nghỉ lễ Quốc khánh 2/9, lực lượng CSGT toàn quốc phát hiện, xử lý 18.738 trường hợp vi phạm; tai nạn giao thông giảm cả 3 tiêu chí so với cùng kỳ.
+R: CSGT chỉ xử lý xe cố tình bám sát đuôi, không giữ khoảng cách trên cao tốc -- Cục CSGT cho biết đa số tài xế đã bước đầu hình thành ý thức giữ khoảng cách với xe liền trước trên cao tốc. Lực lượng chức năng chỉ xử lý những trường hợp cố tình vi phạm, chủ yếu là xe kinh doanh vậ",SAME_EVENT / DIFFERENT_EVENT / UNCERTAIN,,,
+6,QC_PAIR,qc_row 27,INTRA_CLUSTER_WEAKEST_LINK,vietnamnet.vn | vietnamnet.vn,"L: Nhóm thanh niên sang Campuchia, tham gia đường dây lừa đảo xuyên quốc gia -- Lưu Sinh Diễn cùng 8 thanh niên sang Campuchia theo lời mời làm việc lương cao, sau đó được đưa vào một tổ chức do người Trung Quốc cầm đầu, giả danh nhân viên Shopee để lừa hơn 1,3 tỷ đồng của 7 ngườ
+R: Tiếp nhận hơn 100 công dân Việt Nam do phía Campuchia bàn giao -- Các công dân này nghe theo những lời dụ dỗ việc nhẹ lương cao, tham gia vào các ổ nhóm lừa đảo ở nước bạn.",SAME_EVENT / DIFFERENT_EVENT / UNCERTAIN,,,
+7,CROSS_PUBLISHER_EVENT,evt_7d88f2e2523f,"size=2, publishers=2",tuoitre.vn; vietnamnet.vn,"Đà Nẵng hoàn thành lấy mẫu ADN gần 26.000 mộ liệt sĩ, lớn nhất cả nước
+Quảng Trị hoàn thành lấy mẫu sinh phẩm tại 22.864 phần mộ liệt sĩ",SAME_EVENT / PLAUSIBLE / MIXED / DIFFERENT,,,
+8,CROSS_PUBLISHER_EVENT,evt_cc8d4c14c903,"size=2, publishers=2",thanhnien.vn; vietnamnet.vn,"Cháy nhà trong hẻm ở TPHCM làm 2 người tử vong, 5 người bị thương
+Vụ cháy nhà ở TP.HCM: Hợp sức phá cửa, cứu 5 người trong biển lửa",SAME_EVENT / PLAUSIBLE / MIXED / DIFFERENT,,,
+9,CROSS_PUBLISHER_EVENT,evt_bd8426ef24d4,"size=2, publishers=2",thanhnien.vn; vietnamnet.vn,"Nước sông dâng vượt mức báo động 3, người dân Thanh Hóa hối hả chạy lũ
+Đập ngăn mặn tạm trên sông Cái Nha Trang liệu tháo dỡ kịp mùa mưa lũ?",SAME_EVENT / PLAUSIBLE / MIXED / DIFFERENT,,,
+10,CROSS_PUBLISHER_EVENT,evt_690a478e4007,"size=4, publishers=3",dantri.com.vn; thanhnien.vn; vietnamnet.vn,"TPHCM và Nam Bộ bước vào đợt mưa lớn diện rộng, miền Bắc khi nào giảm mưa?
+12 tỉnh, thành ở Nam bộ và Nam Trung bộ ứng phó đợt mưa lớn 400 mm
+4 tỉnh và toàn Nam Bộ mưa rất to, miền Bắc tạnh ráo đến khi nào?
+Nam Trung Bộ và Nam Bộ có thể mưa to lên đến 400mm những ngày tới",SAME_EVENT / PLAUSIBLE / MIXED / DIFFERENT,,,
+11,CROSS_PUBLISHER_EVENT,evt_204c4296541b,"size=2, publishers=2",dantri.com.vn; vietnamnet.vn,"Hà Nội: Nước tràn vào phòng trọ, nam sinh viên nửa đêm phải thuê nhà nghỉ
+""Rốn lũ"" Hà Nội ngập sâu, học sinh vẫn lội nước, ngồi xe kéo đến trường",SAME_EVENT / PLAUSIBLE / MIXED / DIFFERENT,,,
+12,CROSS_PUBLISHER_EVENT,evt_d980a91d4492,"size=3, publishers=2",vietnamnet.vn; vnexpress.net,"Hình ảnh vết nứt dài 200m từ trên sườn đồi khiến hàng loạt hộ dân phải di dời khẩn
+Đất đá từ sườn núi tràn xuống, vùi lấp tỉnh lộ ở Nghệ An
+Lở núi vùi lấp tỉnh lộ, Nghệ An di dời khẩn cấp hàng loạt hộ dân",SAME_EVENT / PLAUSIBLE / MIXED / DIFFERENT,,,
+13,CROSS_PUBLISHER_EVENT,evt_905493b56bab,"size=2, publishers=2",dantri.com.vn; tuoitre.vn,"Bộ trưởng Giáo dục: ""Cộng điểm IELTS có thể gây bất công""
+Bỏ điểm cộng IELTS: Công bằng hay mất động lực học ngoại ngữ?",SAME_EVENT / PLAUSIBLE / MIXED / DIFFERENT,,,
+14,CROSS_PUBLISHER_EVENT,evt_999f3ec12485,"size=4, publishers=3",dantri.com.vn; tuoitre.vn; vietnamnet.vn,"Tài xế ô tô khách vi phạm nồng độ cồn 'kịch khung', cùng chủ xe bị phạt 70 triệu
+Tài xế ô tô tải ở Hải Phòng bị phạt vì lái xe quá thời gian quy định
+Người dân báo Cục trưởng CSGT xe chở gấp đôi số người, tài xế và chủ xe bị phạt 174 triệu
+Từ tin báo đến Cục trưởng CSGT, tài xế và chủ ô tô khách bị phạt 174 triệu đồng",SAME_EVENT / PLAUSIBLE / MIXED / DIFFERENT,,,
+15,CROSS_PUBLISHER_EVENT,evt_97dfc8706783,"size=2, publishers=2",dantri.com.vn; thanhnien.vn,"Tuyển bóng chuyền nữ Việt Nam thất bại trước Trung Quốc ở tứ kết Asiad 20
+Thua Hồng Kông, bóng ném nữ Việt Nam còn cơ hội nào ở ASIAD 20?",SAME_EVENT / PLAUSIBLE / MIXED / DIFFERENT,,,
+16,CROSS_PUBLISHER_EVENT,evt_4b34cba94edc,"size=2, publishers=2",dantri.com.vn; vietnamnet.vn,"Bức xúc cảnh người phụ nữ bị nhắc vẫn đổ cả túi rác xuống kênh Nhiêu Lộc, TPHCM
+Xả thải bừa bãi, 2 người phụ nữ ở Tây Ninh bị phạt 1,5 triệu đồng",SAME_EVENT / PLAUSIBLE / MIXED / DIFFERENT,,,
+17,CROSS_PUBLISHER_EVENT,evt_e78c61455165,"size=2, publishers=2",dantri.com.vn; tuoitre.vn,"Kỳ vọng Việt Nam và Mỹ sẽ tăng cường hợp tác trên các lĩnh vực cốt lõi
+Nhu cầu Việt Nam, thế mạnh Mỹ: Điểm chạm của hợp tác",SAME_EVENT / PLAUSIBLE / MIXED / DIFFERENT,,,
