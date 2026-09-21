@@ -15,3 +15,8 @@ data/processed/*
 !data/raw/.gitkeep
 !data/interim/.gitkeep
 !data/processed/.gitkeep
+
+# Frozen Phase 2A handoff dataset
+!data/processed/master/
+data/processed/master/*
+!data/processed/master/articles_master.parquet
