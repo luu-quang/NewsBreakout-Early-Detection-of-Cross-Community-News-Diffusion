@@ -6,6 +6,10 @@ model settings stay at 0.30 / 5 days / complete linkage.
 
 Reproduce: `python -m src.analysis.midterm_analysis` (code: `src/analysis/midterm_analysis.py`).
 
+## Review status
+
+**All labels in this folder are AI-assisted and have NOT yet been checked by a human.** This covers the 50 provisional QC pairs (`manual_inputs/qc_labels.csv`) and the 26 cross-publisher event verdicts (`manual_inputs/cross_publisher_event_review.csv`). A second AI pass over the 17 flagged rows (6 uncertain QC pairs + 11 non-SAME cross-publisher events) exists in `human_review_flagged_17.csv`, but a second AI pass is not human validation. The human review of those 17 rows is pending (`human_review_flagged_17_blind.csv`; `human_label` and `reviewer` are still empty); results and agreement will be added here once available. Until then, treat every label and every count derived from them as provisional.
+
 ## Figure → source table
 
 | Figure (`figures/`) | Source CSV (`tables/`) |
@@ -33,6 +37,6 @@ The frozen `event_clusters_qc.csv` is not edited; labels live in this folder and
 
 ## Caveats
 
-- QC labels and cross-publisher verdicts were assigned by an AI reviewer reading titles and descriptions; they are a screening pass, not human ground truth. A teammate should spot-check them (especially the UNCERTAIN and MIXED rows) before quoting precision figures.
+- QC labels and cross-publisher verdicts were assigned by an AI reviewer reading titles and descriptions; they are a screening pass, not human ground truth. No human has checked them yet (see Review status). Do not quote precision or error-rate figures from them until the human review of the flagged rows is done.
 - QC strata are targeted (worst links / nearest pairs), so the percentages describe those samples only.
 - `first_published_at` = earliest `published_at` in the event (fallback `first_seen_at` if missing, as in Phase 2C).
