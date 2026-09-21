@@ -25,6 +25,9 @@ class DedupTests(unittest.TestCase):
     def test_normalize_unescapes_html_and_keeps_diacritics(self):
         self.assertEqual(d.normalize("Biển người &apos;đi bão&apos; <b>TPHCM</b>!"), "biển người đi bão tphcm")
 
+    def test_normalize_pandas_na_as_empty(self):
+        self.assertEqual(d.normalize(pd.NA), "")
+
     def test_canonical_url_tracking_variants_are_exact_duplicates(self):
         df = frame([
             {"title": "Different title A", "description": "different description A",
@@ -36,16 +39,23 @@ class DedupTests(unittest.TestCase):
         self.assertEqual(r["accepted"][(0, 1)][0], "EXACT_DUPLICATE")
         self.assertEqual(r["accepted"][(0, 1)][2], "identical_normalized_canonical_url")
 
-    def test_exact_title_and_description_detected_including_empty_descriptions(self):
+    def test_exact_nonempty_title_and_description_detected(self):
         df = frame([
             {"title": "Same Title", "description": "One two three four five six seven"},
             {"title": "same  title!", "description": "One two three four five six seven."},
-            {"title": "Only title", "description": None},
-            {"title": "Only Title", "description": ""},
         ])
         r = d.analyze(df)
-        self.assertEqual({k: v[0] for k, v in r["accepted"].items()}, {(0, 1): "EXACT_DUPLICATE", (2, 3): "EXACT_DUPLICATE"})
-        self.assertEqual(len(r["families"]), 2)
+        self.assertEqual({k: v[0] for k, v in r["accepted"].items()}, {(0, 1): "EXACT_DUPLICATE"})
+        self.assertEqual(len(r["families"]), 1)
+
+    def test_same_title_with_empty_descriptions_is_not_exact(self):
+        df = frame([
+            {"title": "Same story", "description": None},
+            {"title": "Same story", "description": ""},
+        ])
+        r = d.analyze(df)
+        self.assertNotIn((0, 1), r["accepted"])
+        self.assertEqual(r["assignment"], [None, None])
 
     def test_verbatim_lede_with_new_headline_is_syndicated(self):
         df = frame([
