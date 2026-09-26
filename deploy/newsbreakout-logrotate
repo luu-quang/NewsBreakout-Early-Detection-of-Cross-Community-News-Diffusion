@@ -1,0 +1,12 @@
+/var/log/newsbreakout/*.log {
+    daily
+    rotate 14
+    compress
+    delaycompress
+    missingok
+    notifempty
+    # No postrotate/copytruncate needed: each service invocation is a fresh
+    # short-lived process (systemd oneshot units, not a long-running daemon
+    # holding the file open), so there is no process to signal to reopen the
+    # file after rotation.
+}

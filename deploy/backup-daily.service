@@ -1,0 +1,14 @@
+[Unit]
+Description=Daily backup of the NewsBreakout v2 raw corpus off the VM
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=newsbreakout
+Group=newsbreakout
+WorkingDirectory=/opt/newsbreakout
+EnvironmentFile=-/etc/newsbreakout/backup.env
+ExecStart=/opt/newsbreakout/deploy/backup_daily.sh
+StandardOutput=append:/var/log/newsbreakout/backup.log
+StandardError=append:/var/log/newsbreakout/backup.log

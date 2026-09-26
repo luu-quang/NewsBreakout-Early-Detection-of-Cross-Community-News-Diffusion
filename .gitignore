@@ -3,6 +3,8 @@ __pycache__/
 .venv/
 venv/
 .env
+deploy/*.env
+!deploy/*.env.example
 .ipynb_checkpoints/
 .vscode/
 .idea/

@@ -4,6 +4,16 @@ Every fetched entry is first appended to an exact JSONL payload archive. A
 separate Parquet candidate table keeps operational metadata and a stable
 ``raw_payload_ref`` of the form ``path#raw_record_id=<id>``. Repeated runs retain
 the earliest collector observation for a URL and update ``last_seen_at``.
+
+Default invocation (no ``--continuous``) is byte-for-byte the same v1 behavior,
+except two universal safety fixes that change no output content: each feed
+fetch now has a real timeout (``feedparser.parse(url)`` has none of its own -
+one hung feed used to hang the whole run), and the candidate Parquet is now
+written atomically (temp file + ``os.replace``, so a crash mid-write cannot
+corrupt it). ``--continuous`` switches to the v2 layout for safe unattended
+polling every few minutes - see ``src/collect_v2/`` and
+``docs/HANDOFF_2026-09-26.md``; it does not write the candidate Parquet at all
+(build it offline with ``src/collect_v2/build_candidate_table.py``).
 """
 
 from __future__ import annotations
@@ -11,11 +21,18 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import sys
+import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
-import feedparser
 import pandas as pd
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[5]))
+from src.collect_v2 import continuous_write, feed_state, fetch, lock  # noqa: E402
+from src.collect_v2 import paths as v2_paths  # noqa: E402
+
+DEFAULT_FETCH_TIMEOUT = 15.0
 
 RSS_FEEDS = {
     "vnexpress": "https://vnexpress.net/rss/tin-moi-nhat.rss",
@@ -105,18 +122,28 @@ def merge_with_history(new_df: pd.DataFrame, output_path: Path) -> pd.DataFrame:
     return merged.sort_values("first_seen_at").reset_index(drop=True)
 
 
-def collect(collection_mode: str, archive_path: Path) -> pd.DataFrame:
+def _fetch_feed_entries(publisher_id: str, feed_url: str, fetch_timeout: float) -> list[dict]:
+    """Fetch one feed in isolation: a timeout or any other fetch error here is
+    logged and skipped, never raised, so one bad feed cannot abort the run."""
+    print(f"[rss] fetching {publisher_id}: {feed_url}")
+    try:
+        feed = fetch.fetch_feed(feed_url, timeout=fetch_timeout, user_agent=USER_AGENT)
+    except fetch.FeedFetchError as exc:
+        print(f"[rss] fetch failed for {publisher_id}: {exc}")
+        return []
+    if getattr(feed, "bozo", False) and not feed.entries:
+        print(f"[rss] parse failed for {publisher_id}: {feed.bozo_exception}")
+        return []
+    return [dict(entry) for entry in feed.entries]
+
+
+def collect(collection_mode: str, archive_path: Path, fetch_timeout: float = DEFAULT_FETCH_TIMEOUT) -> pd.DataFrame:
     observed_at = datetime.now(timezone.utc).isoformat()
     raw_records: list[dict] = []
 
     for publisher_id, feed_url in RSS_FEEDS.items():
-        print(f"[rss] fetching {publisher_id}: {feed_url}")
-        feed = feedparser.parse(feed_url, agent=USER_AGENT)
-        if getattr(feed, "bozo", False) and not feed.entries:
-            print(f"[rss] parse failed for {publisher_id}: {feed.bozo_exception}")
-            continue
-        for entry in feed.entries:
-            raw_records.append(_raw_record(publisher_id, feed_url, observed_at, dict(entry)))
+        for entry in _fetch_feed_entries(publisher_id, feed_url, fetch_timeout):
+            raw_records.append(_raw_record(publisher_id, feed_url, observed_at, entry))
 
     # This happens before URL validation or relevance filtering by design.
     append_raw_records(raw_records, archive_path)
@@ -142,6 +169,37 @@ def collect(collection_mode: str, archive_path: Path) -> pd.DataFrame:
     return pd.DataFrame(rows, columns=RAW_COLUMNS)
 
 
+def collect_continuous(collector_host: str, fetch_timeout: float, run_id: str) -> tuple[int, int]:
+    """Fetch every feed once and write it under the v2 continuous layout.
+
+    Returns (new_payloads, entries_seen). Writes no candidate Parquet - build
+    it offline from the JSONL archive with
+    ``src/collect_v2/build_candidate_table.py``.
+    """
+    observed_at = datetime.now(timezone.utc).isoformat()
+    candidates = []
+    feeds_with_entries: dict[str, str | None] = {}
+    for publisher_id, feed_url in RSS_FEEDS.items():
+        entries = _fetch_feed_entries(publisher_id, feed_url, fetch_timeout)
+        if entries:
+            feeds_with_entries[feed_url] = publisher_id
+        for entry in entries:
+            candidates.append(
+                continuous_write.RawCandidate(
+                    url=str(entry.get("link", "")).strip(),
+                    payload=entry,
+                    source_system="rss",
+                    source_locator=feed_url,
+                    publisher_id_hint=publisher_id,
+                )
+            )
+    _refs, new_count = continuous_write.write_continuous_batch(
+        "domestic", collector_host, candidates, observed_at=observed_at, run_id=run_id
+    )
+    feed_state.record_first_seen_batch("domestic", collector_host, feeds_with_entries, observed_at)
+    return new_count, len(candidates)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Collect Vietnamese publisher RSS entries.")
     parser.add_argument(
@@ -151,7 +209,31 @@ def main() -> None:
     )
     parser.add_argument("--output", default=None, help="Normalized raw candidate Parquet path.")
     parser.add_argument("--payload-archive", default=None, help="Exact append-only JSONL archive path.")
+    parser.add_argument(
+        "--continuous",
+        action="store_true",
+        help=(
+            "Write to the v2 append-only JSONL layout (data/raw/v2/domestic/<host>/...) "
+            "instead of the v1 candidate Parquet. Disjoint from the flags above."
+        ),
+    )
+    parser.add_argument("--collector-host", default=None, help="Defaults to $COLLECTOR_HOST or the machine hostname.")
+    parser.add_argument("--fetch-timeout", type=float, default=DEFAULT_FETCH_TIMEOUT, help="Per-feed HTTP timeout, seconds.")
+    parser.add_argument("--run-lock", default=None, help="Continuous mode only: override the run-lock path.")
     args = parser.parse_args()
+
+    if args.continuous:
+        if args.collection_mode == "historical_backfill":
+            raise SystemExit("--continuous does not support --collection-mode historical_backfill.")
+        collector_host = args.collector_host or v2_paths.default_collector_host()
+        lock_path = Path(args.run_lock) if args.run_lock else v2_paths.branch_host_dir("domestic", collector_host) / "run.lock"
+        run_id = uuid.uuid4().hex
+        with lock.run_lock(lock_path):
+            new_count, seen_count = collect_continuous(collector_host, args.fetch_timeout, run_id)
+        print(f"[continuous] run_id={run_id} collector_host={collector_host}")
+        print(f"Entries seen this run : {seen_count:,}")
+        print(f"New payloads archived : {new_count:,}")
+        return
 
     suffix = "historical" if args.collection_mode == "historical_backfill" else "raw"
     output_path = Path(args.output or f"data/raw/vietnamese/vietnamese_{suffix}.parquet")
@@ -160,13 +242,13 @@ def main() -> None:
     )
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    new_df = collect(args.collection_mode, archive_path)
+    new_df = collect(args.collection_mode, archive_path, fetch_timeout=args.fetch_timeout)
     new_df["_candidate_key"] = new_df["url"].where(
         new_df["url"].fillna("").str.strip().ne(""), new_df["raw_payload_ref"]
     )
     new_df = new_df.drop_duplicates(subset=["_candidate_key"], keep="first").drop(columns="_candidate_key").reset_index(drop=True)
     merged_df = merge_with_history(new_df, output_path)
-    merged_df.to_parquet(output_path, index=False)
+    v2_paths.atomic_write_parquet(merged_df, output_path)
 
     print(f"Fetched this snapshot : {len(new_df):,} unique URLs")
     print(f"Stored total          : {len(merged_df):,} unique URLs")
