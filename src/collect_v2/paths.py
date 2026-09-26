@@ -63,6 +63,12 @@ def heartbeat_path(collector_host: str, year_month: str | None = None) -> Path:
     return V2_ROOT / "heartbeat" / f"{collector_host}-{year_month}.jsonl"
 
 
+def feed_state_path() -> Path:
+    """Per-feed first-observed tracking (see ``feed_state.py``). One file for
+    every branch/host - small, and there is exactly one of it by design."""
+    return V2_ROOT / "state" / "feeds.json"
+
+
 def archive_label(path: Path) -> str:
     """Repo-relative POSIX path when possible, matching v1's own convention
     (see ``_archive_label`` in ``collect_vn.py`` / ``collect_intl.py``) - but

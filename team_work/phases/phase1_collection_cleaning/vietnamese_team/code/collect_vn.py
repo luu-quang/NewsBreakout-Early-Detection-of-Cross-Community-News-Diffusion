@@ -29,7 +29,7 @@ from pathlib import Path
 import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[5]))
-from src.collect_v2 import continuous_write, fetch, lock  # noqa: E402
+from src.collect_v2 import continuous_write, feed_state, fetch, lock  # noqa: E402
 from src.collect_v2 import paths as v2_paths  # noqa: E402
 
 DEFAULT_FETCH_TIMEOUT = 15.0
@@ -178,8 +178,12 @@ def collect_continuous(collector_host: str, fetch_timeout: float, run_id: str) -
     """
     observed_at = datetime.now(timezone.utc).isoformat()
     candidates = []
+    feeds_with_entries: dict[str, str | None] = {}
     for publisher_id, feed_url in RSS_FEEDS.items():
-        for entry in _fetch_feed_entries(publisher_id, feed_url, fetch_timeout):
+        entries = _fetch_feed_entries(publisher_id, feed_url, fetch_timeout)
+        if entries:
+            feeds_with_entries[feed_url] = publisher_id
+        for entry in entries:
             candidates.append(
                 continuous_write.RawCandidate(
                     url=str(entry.get("link", "")).strip(),
@@ -192,6 +196,7 @@ def collect_continuous(collector_host: str, fetch_timeout: float, run_id: str) -
     _refs, new_count = continuous_write.write_continuous_batch(
         "domestic", collector_host, candidates, observed_at=observed_at, run_id=run_id
     )
+    feed_state.record_first_seen_batch("domestic", collector_host, feeds_with_entries, observed_at)
     return new_count, len(candidates)
 
 
