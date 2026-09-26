@@ -29,12 +29,19 @@ def write_continuous_batch(
     *,
     observed_at: str,
     run_id: str,
-) -> list[str]:
-    """Write ``candidates`` and return their ``raw_payload_ref`` values, in order."""
+) -> tuple[list[str], int]:
+    """Write ``candidates``; return (``raw_payload_ref`` per candidate, in order,
+    count of candidates that were genuinely new this call).
+
+    The new-count is NOT ``len(set(refs))`` - two different candidates in the
+    same batch can share a ref (duplicate content within one poll), which is a
+    different thing from "this content had never been archived before".
+    """
     payloads_file = paths.payloads_path(branch, collector_host)
     sightings_file = paths.sightings_path(branch, collector_host)
     conn = seen_index.connect(paths.seen_index_path(branch, collector_host))
     refs: list[str] = []
+    new_count = 0
     try:
         for candidate in candidates:
             h = hashing.content_hash(candidate.payload)
@@ -42,11 +49,13 @@ def write_continuous_batch(
             new = seen_index.is_new(conn, key, h)
 
             if new:
-                ref = f"{paths.archive_label(payloads_file)}#raw_record_id={h}"
+                new_count += 1
+                record_id = hashing.record_id(key, h)
+                ref = f"{paths.archive_label(payloads_file)}#raw_record_id={record_id}"
                 jsonl_store.append_line(
                     payloads_file,
                     {
-                        "raw_record_id": h,
+                        "raw_record_id": record_id,
                         "entry_key": key,
                         "content_hash": h,
                         "source_system": candidate.source_system,
@@ -79,4 +88,4 @@ def write_continuous_batch(
             refs.append(ref)
     finally:
         conn.close()
-    return refs
+    return refs, new_count

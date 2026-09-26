@@ -130,19 +130,47 @@ def test_write_continuous_batch_dedupes_payload_across_polls(tmp_path):
     candidate = continuous_write.RawCandidate(
         url="https://x/1", payload={"title": "same"}, source_system="rss", source_locator="https://feed"
     )
-    refs1 = continuous_write.write_continuous_batch(
+    refs1, new1 = continuous_write.write_continuous_batch(
         "domestic", "host-a", [candidate], observed_at="2026-09-26T00:00:00Z", run_id="run1"
     )
-    refs2 = continuous_write.write_continuous_batch(
+    refs2, new2 = continuous_write.write_continuous_batch(
         "domestic", "host-a", [candidate], observed_at="2026-09-26T00:10:00Z", run_id="run2"
     )
     assert refs1 == refs2  # same content -> same payload_ref, no new payload written
+    assert (new1, new2) == (1, 0)  # regression check: new_count must reflect true new-vs-seen,
+    # not len(set(refs)) - an earlier version of this counting logic (caught live
+    # against real feeds, not by a test) reported every re-polled entry as "new".
 
     payloads = list(jsonl_store.iter_jsonl(paths.payloads_path("domestic", "host-a")))
     sightings = list(jsonl_store.iter_jsonl(paths.sightings_path("domestic", "host-a")))
     assert len(payloads) == 1  # written once, not once per poll
     assert len(sightings) == 2  # every poll still recorded a sighting
     assert [s["is_new"] for s in sightings] == [True, False]
+
+
+def test_write_continuous_batch_new_count_ignores_within_batch_duplicates():
+    """The exact same (url, content) appearing twice in one poll - e.g. a feed
+    that lists an item twice - must count as one new payload, not two."""
+    a = continuous_write.RawCandidate(url="https://x/1", payload={"title": "dup"}, source_system="rss", source_locator="feed-a")
+    b = continuous_write.RawCandidate(url="https://x/1", payload={"title": "dup"}, source_system="rss", source_locator="feed-a")
+    refs, new_count = continuous_write.write_continuous_batch(
+        "domestic", "host-a", [a, b], observed_at="t0", run_id="r1"
+    )
+    assert new_count == 1
+    assert refs[0] == refs[1]  # both point at the one archived payload
+
+
+def test_write_continuous_batch_new_count_is_per_url_not_per_content():
+    """Two DIFFERENT URLs that happen to carry identical content (e.g. true
+    cross-publisher syndication) are each archived under their own identity -
+    content is deduplicated per-URL, not globally across URLs."""
+    a = continuous_write.RawCandidate(url="https://x/1", payload={"title": "dup"}, source_system="rss", source_locator="feed-a")
+    b = continuous_write.RawCandidate(url="https://x/2", payload={"title": "dup"}, source_system="rss", source_locator="feed-b")
+    refs, new_count = continuous_write.write_continuous_batch(
+        "domestic", "host-a", [a, b], observed_at="t0", run_id="r1"
+    )
+    assert new_count == 2
+    assert refs[0] != refs[1]
 
 
 def test_write_continuous_batch_edit_preserves_history():
@@ -220,7 +248,7 @@ def test_rebuild_after_gzip_rotation_reproduces_same_payload_ref():
     """A ref recorded before rotation must still resolve after the file is
     gzipped - rebuild must not mint a .gz-suffixed ref for old records."""
     candidate = continuous_write.RawCandidate(url="https://x/1", payload={"title": "a"}, source_system="rss", source_locator="f")
-    refs_before = continuous_write.write_continuous_batch("domestic", "host-a", [candidate], observed_at="t0", run_id="r1")
+    refs_before, _ = continuous_write.write_continuous_batch("domestic", "host-a", [candidate], observed_at="t0", run_id="r1")
 
     directory = paths.branch_host_dir("domestic", "host-a")
     tomorrow = date.today() + timedelta(days=1)  # "today"'s file is never rotated; pretend it's the next day

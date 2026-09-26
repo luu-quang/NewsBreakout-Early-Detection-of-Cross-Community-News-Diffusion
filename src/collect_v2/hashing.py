@@ -30,3 +30,17 @@ def entry_key(url: object, fallback_hash: str) -> str:
     """
     text = str(url or "").strip()
     return text if text else f"nourl:{fallback_hash}"
+
+
+def record_id(entry_key_value: str, content_hash_value: str) -> str:
+    """Unique id for one archived JSONL line.
+
+    Deliberately NOT the same as ``content_hash`` alone: two different URLs can
+    carry byte-identical content (true syndication - the exact case this
+    project studies), which would otherwise archive as two distinct lines that
+    share one id, making ``raw_payload_ref`` ambiguous about which line it
+    names. Combining with ``entry_key`` keeps every archived line uniquely
+    addressable while ``content_hash`` alone still drives the seen-index dedup
+    decision (same URL, same content -> genuinely not new).
+    """
+    return hashlib.sha256(f"{entry_key_value}|{content_hash_value}".encode("utf-8")).hexdigest()
