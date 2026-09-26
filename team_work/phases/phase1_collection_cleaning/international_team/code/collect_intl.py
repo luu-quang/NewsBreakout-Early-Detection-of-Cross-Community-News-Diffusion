@@ -3,6 +3,16 @@
 Exact source records are appended to JSONL before basic validation. The
 normalized raw candidate table preserves collector observation history and
 points back to one exact archive record through ``raw_payload_ref``.
+
+Default invocation (no ``--continuous``) is byte-for-byte the same v1 behavior,
+except two universal safety fixes that change no output content: RSS feed
+fetches now go through a real per-request timeout (``feedparser.parse(url)``
+has none of its own), and the candidate Parquet is written atomically (temp
+file + ``os.replace``). ``--continuous`` switches to the v2 layout for safe
+unattended polling; it always skips GDELT regardless of ``--skip-gdelt`` (GDELT
+is a supplementary/backfill source, not meant to be called every few minutes -
+see ``docs/HANDOFF_2026-09-26.md``) and does not write the candidate Parquet at
+all (build it offline with ``src/collect_v2/build_candidate_table.py``).
 """
 
 from __future__ import annotations
@@ -10,7 +20,9 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import sys
 import time
+import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from urllib.error import HTTPError
@@ -18,13 +30,17 @@ from urllib.parse import urlencode, urlparse
 from urllib.request import Request, urlopen
 
 import dateutil.parser
-import feedparser
 import pandas as pd
 from dateutil.tz import gettz
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[5]))
+from src.collect_v2 import continuous_write, fetch, lock  # noqa: E402
+from src.collect_v2 import paths as v2_paths  # noqa: E402
 
 GDELT_DOC_URL = "https://api.gdeltproject.org/api/v2/doc/doc"
 GDELT_TIMESPAN = "1w"
 USER_AGENT = "NewsBreakout/1.0 (+https://github.com/luu-quang/NewsBreakout)"
+DEFAULT_FETCH_TIMEOUT = 15.0
 
 PUBLISHERS = {
     "reuters.com": {"publisher_id": "reuters", "publisher_group_id": "thomson_reuters", "publisher_country": "GB"},
@@ -211,17 +227,27 @@ def fetch_gdelt_doc(archive_path: Path, timespan: str = GDELT_TIMESPAN, collecti
     return pd.DataFrame(rows, columns=RAW_COLUMNS)
 
 
-def fetch_publisher_rss(archive_path: Path) -> pd.DataFrame:
+def _fetch_feed_entries(domain: str, feed_url: str, fetch_timeout: float) -> list[dict]:
+    """Fetch one feed in isolation: a timeout or any other fetch error here is
+    logged and skipped, never raised, so one bad feed cannot abort the run."""
+    try:
+        feed = fetch.fetch_feed(feed_url, timeout=fetch_timeout, user_agent=USER_AGENT)
+    except fetch.FeedFetchError as exc:
+        print(f"[rss] fetch failed for {domain}: {exc}")
+        return []
+    if getattr(feed, "bozo", False) and not feed.entries:
+        print(f"[rss] parse failed for {domain}: {feed.bozo_exception}")
+        return []
+    return [dict(entry) for entry in feed.entries]
+
+
+def fetch_publisher_rss(archive_path: Path, fetch_timeout: float = DEFAULT_FETCH_TIMEOUT) -> pd.DataFrame:
     """Fetch every current feed entry; relevance is never filtered here."""
     observed_at = datetime.now(timezone.utc).isoformat()
     rows = []
     for domain, feed_url in RSS_FEEDS.items():
-        feed = feedparser.parse(feed_url, agent=USER_AGENT)
-        if getattr(feed, "bozo", False) and not feed.entries:
-            print(f"[rss] parse failed for {domain}: {feed.bozo_exception}")
-            continue
-
-        records = [make_raw_record("rss", feed_url, observed_at, dict(entry)) for entry in feed.entries]
+        entries = _fetch_feed_entries(domain, feed_url, fetch_timeout)
+        records = [make_raw_record("rss", feed_url, observed_at, entry) for entry in entries]
         append_raw_records(records, archive_path)
         for record in records:
             entry = record["payload"]
@@ -253,13 +279,66 @@ def merge_with_history(new_df: pd.DataFrame, output_path: Path) -> pd.DataFrame:
     return first_rows.reset_index(drop=True)[RAW_COLUMNS].sort_values("first_seen_at").reset_index(drop=True)
 
 
+def collect_continuous(collector_host: str, fetch_timeout: float, run_id: str) -> tuple[int, int]:
+    """Fetch every direct RSS feed once and write it under the v2 continuous
+    layout. Never calls GDELT - GDELT is a supplementary/backfill source, not
+    meant to be polled every few minutes.
+
+    Returns (new_payloads, entries_seen). Writes no candidate Parquet - build
+    it offline with ``src/collect_v2/build_candidate_table.py``.
+    """
+    observed_at = datetime.now(timezone.utc).isoformat()
+    candidates = []
+    for domain, feed_url in RSS_FEEDS.items():
+        for entry in _fetch_feed_entries(domain, feed_url, fetch_timeout):
+            candidates.append(
+                continuous_write.RawCandidate(
+                    url=str(entry.get("link", "")).strip(),
+                    payload=entry,
+                    source_system="rss",
+                    source_locator=feed_url,
+                    publisher_id_hint=domain,
+                )
+            )
+    _refs, new_count = continuous_write.write_continuous_batch(
+        "international", collector_host, candidates, observed_at=observed_at, run_id=run_id
+    )
+    return new_count, len(candidates)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Collect international Phase 1 candidates.")
     parser.add_argument("--output", default=None)
     parser.add_argument("--payload-archive", default=None)
     parser.add_argument("--skip-gdelt", action="store_true")
     parser.add_argument("--historical-days", type=int, default=None)
+    parser.add_argument(
+        "--continuous",
+        action="store_true",
+        help=(
+            "Write to the v2 append-only JSONL layout (data/raw/v2/international/<host>/...) "
+            "instead of the v1 candidate Parquet. Always skips GDELT. Incompatible with --historical-days."
+        ),
+    )
+    parser.add_argument("--collector-host", default=None, help="Defaults to $COLLECTOR_HOST or the machine hostname.")
+    parser.add_argument("--fetch-timeout", type=float, default=DEFAULT_FETCH_TIMEOUT, help="Per-feed HTTP timeout, seconds.")
+    parser.add_argument("--run-lock", default=None, help="Continuous mode only: override the run-lock path.")
     args = parser.parse_args()
+
+    if args.continuous:
+        if args.historical_days is not None:
+            raise SystemExit("--continuous does not support --historical-days.")
+        collector_host = args.collector_host or v2_paths.default_collector_host()
+        lock_path = (
+            Path(args.run_lock) if args.run_lock else v2_paths.branch_host_dir("international", collector_host) / "run.lock"
+        )
+        run_id = uuid.uuid4().hex
+        with lock.run_lock(lock_path):
+            new_count, seen_count = collect_continuous(collector_host, args.fetch_timeout, run_id)
+        print(f"[continuous] run_id={run_id} collector_host={collector_host}")
+        print(f"Entries seen this run : {seen_count:,}")
+        print(f"New payloads archived : {new_count:,}")
+        return
 
     historical = args.historical_days is not None
     suffix = "historical" if historical else "raw"
@@ -273,7 +352,7 @@ def main() -> None:
     else:
         if not args.skip_gdelt:
             frames.append(fetch_gdelt_doc(archive_path))
-        frames.append(fetch_publisher_rss(archive_path))
+        frames.append(fetch_publisher_rss(archive_path, fetch_timeout=args.fetch_timeout))
 
     new_df = pd.concat(frames, ignore_index=True) if frames else pd.DataFrame(columns=RAW_COLUMNS)
     new_df["_candidate_key"] = new_df["url"].where(
@@ -281,7 +360,7 @@ def main() -> None:
     )
     new_df = new_df.drop_duplicates(subset=["_candidate_key"], keep="first").drop(columns="_candidate_key").reset_index(drop=True)
     merged_df = merge_with_history(new_df, output_path)
-    merged_df.to_parquet(output_path, index=False)
+    v2_paths.atomic_write_parquet(merged_df, output_path)
 
     print(f"Fetched this snapshot : {len(new_df):,} unique URLs")
     print(f"Stored total          : {len(merged_df):,} unique URLs")
