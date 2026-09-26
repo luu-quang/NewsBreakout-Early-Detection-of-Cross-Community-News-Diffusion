@@ -1,0 +1,21 @@
+[Unit]
+Description=NewsBreakout continuous collector (one run)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=newsbreakout
+Group=newsbreakout
+WorkingDirectory=/opt/newsbreakout
+# Leading "-": optional. If this file doesn't exist yet, runner.py already
+# handles a missing HEALTHCHECKS_PING_URL gracefully (skips the ping, doesn't fail).
+EnvironmentFile=-/etc/newsbreakout/collector.env
+ExecStart=/opt/newsbreakout/.venv/bin/python3 /opt/newsbreakout/scripts/run_collectors.py --fetch-timeout 15 --child-timeout 120
+# Outer safety net: each collector already enforces --child-timeout internally
+# (120s above); this bounds the whole run in case the runner process itself
+# hangs for a reason that isn't a child subprocess (e.g. stuck acquiring a
+# lock). Comfortably above 2x120s so it never fires on a merely-slow-but-fine run.
+TimeoutStartSec=300
+StandardOutput=append:/var/log/newsbreakout/collector.log
+StandardError=append:/var/log/newsbreakout/collector.log

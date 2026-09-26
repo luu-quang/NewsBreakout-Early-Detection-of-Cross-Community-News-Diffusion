@@ -1,0 +1,13 @@
+[Unit]
+Description=Run the NewsBreakout continuous collector every 10 minutes
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=10min
+# If the VM was off/asleep when a run was due, run it once immediately on
+# next boot instead of silently skipping it.
+Persistent=true
+Unit=collector-runner.service
+
+[Install]
+WantedBy=timers.target
