@@ -162,21 +162,28 @@ def hours_since_last_new(collector_host: str, feed_id: str, now: datetime, max_l
     history, scanning back at most ``max_lookback_hours``.
 
     If heartbeat history exists in the window but this feed never had
-    ``n_new > 0`` in it, returns ``max_lookback_hours`` itself (a lower
-    bound - "at least this stale") rather than ``None``, so a feed that has
-    been stale for LONGER than the scan window still gets flagged instead of
-    silently falling out of view the longer it stays broken. ``None`` only
-    when there is no heartbeat history at all in the window (can't confirm
-    anything - the feed or the collector itself is too new)."""
-    any_heartbeat = False
+    ``n_new > 0`` in it, returns how long we've actually been watching
+    without seeing it fresh (``now`` minus the OLDEST record found in the
+    window) - not ``max_lookback_hours`` flatly. That distinction matters
+    right after a fresh deploy: with only ~20 minutes of heartbeat history
+    so far, claiming a feed has been stale for a full ``max_lookback_hours``
+    would be false - it just hasn't been observed long enough yet to know
+    either way. As real history accumulates without freshness, this value
+    grows on its own and naturally crosses the threshold once genuinely
+    warranted - it is never capped below the true observed span. ``None``
+    only when there is no heartbeat history at all in the window (can't
+    confirm anything - the feed or the collector itself is too new)."""
+    oldest_seen_at: datetime | None = None
     for record in _recent_heartbeat_records(collector_host, now, max_lookback_hours):
-        any_heartbeat = True
+        run_at = datetime.fromisoformat(record["run_at"])
+        oldest_seen_at = run_at  # records come back newest-first; the last one assigned is the oldest
         for child in record.get("children", {}).values():
             for result in child.get("per_feed", []):
                 if result["feed_id"] == feed_id and result.get("n_new", 0) > 0:
-                    run_at = datetime.fromisoformat(record["run_at"])
                     return (now - run_at).total_seconds() / 3600.0
-    return max_lookback_hours if any_heartbeat else None
+    if oldest_seen_at is None:
+        return None
+    return (now - oldest_seen_at).total_seconds() / 3600.0
 
 
 def stale_feed_issues(current_new_counts: dict[str, int], collector_host: str, now: datetime) -> list[str]:
