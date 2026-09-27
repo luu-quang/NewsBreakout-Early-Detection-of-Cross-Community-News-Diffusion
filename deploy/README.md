@@ -66,15 +66,31 @@ you@vm$ sudo chmod 600 /etc/newsbreakout/backup.env
 you@vm$ sudo -u newsbreakout /opt/newsbreakout/.venv/bin/python3 /opt/newsbreakout/scripts/run_collectors.py --fetch-timeout 20 --child-timeout 120
 ```
 
-Paste me the full output. I'm looking for, per feed: `[rss] fetching <id>: <url>`
-followed by either nothing (success) or `[rss] fetch failed for <id>: <error>`
-(shows the underlying HTTP/timeout error), plus the final per-branch summary
-(`Entries seen this run`, `New payloads archived`) and the JSON heartbeat
-record at the end (`overall_ok`, per-child `ok`/`duration_seconds`/counts/`error`).
+Paste me the full output - the JSON heartbeat record at the end
+(`overall_ok`, per-child `ok`/`duration_seconds`/counts/`error`). Note this
+only shows aggregate per-branch counts: `runner.py` captures each collector's
+stdout internally (`subprocess.run(..., capture_output=True)`) so it never
+reaches your terminal - a feed that fetches successfully but silently
+returns 0 entries (found live once: a CDN gzip-compressing the response
+without being asked, which `feedparser` can't parse as XML) won't show up
+here at all.
+
+If `overall_ok` is false, or a feed you just added doesn't seem to be
+contributing anything to `new_payloads`/`entries_seen`, run that one
+collector directly instead (bypasses the runner, so its own
+`[rss] fetching <id>: <url>` / `[rss] fetch failed for <id>: <error>` /
+`[rss] parse failed for <id>: <error>` lines print straight to your
+terminal):
+
+```bash
+you@vm$ sudo -u newsbreakout /opt/newsbreakout/.venv/bin/python3 /opt/newsbreakout/team_work/phases/phase1_collection_cleaning/vietnamese_team/code/collect_vn.py --continuous --collector-host $(hostname) --fetch-timeout 20
+you@vm$ sudo -u newsbreakout /opt/newsbreakout/.venv/bin/python3 /opt/newsbreakout/team_work/phases/phase1_collection_cleaning/international_team/code/collect_intl.py --continuous --collector-host $(hostname) --fetch-timeout 20
+```
 
 If a specific feed is blocked or fails from the VM's network but worked from
 here earlier, that's exactly what this step is for - tell me which one and
-I'll help figure out why (blocked outbound IP range, DNS, TLS, etc.).
+I'll help figure out why (blocked outbound IP range, DNS, TLS, gzip/encoding
+mismatch, etc.).
 
 ## 5. Enable the timers
 

@@ -5,9 +5,13 @@ cross-platform lock, and timeout-guarded fetch.
 
 from __future__ import annotations
 
+import gzip
 import json
+import threading
 import time
+import zlib
 from datetime import date, timedelta
+from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 
 import pytest
@@ -312,3 +316,103 @@ def test_fetch_bytes_timeout_raises_feed_fetch_error():
 def test_fetch_bytes_unresolvable_host_raises_feed_fetch_error():
     with pytest.raises(fetch.FeedFetchError):
         fetch.fetch_bytes("http://this-host-does-not-exist.invalid/", timeout=1.0, user_agent="test")
+
+
+class _EncodedBodyServer:
+    """A real local HTTP server (not mocked) serving one fixed body with a
+    given Content-Encoding header - reproduces the actual bug found live:
+    some publisher CDNs gzip-compress RSS responses unconditionally, and
+    ``feedparser.parse(raw_gzip_bytes)`` silently reports zero entries
+    instead of a fetch error if that isn't decompressed first."""
+
+    def __init__(self, body: bytes, content_encoding: str | None):
+        def handler_factory(*args, **kwargs):
+            return _Handler(body, content_encoding, *args, **kwargs)
+
+        self.server = HTTPServer(("127.0.0.1", 0), handler_factory)
+        self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
+        self.thread.start()
+
+    @property
+    def url(self) -> str:
+        host, port = self.server.server_address
+        return f"http://{host}:{port}/feed.rss"
+
+    def close(self) -> None:
+        self.server.shutdown()
+        self.thread.join(timeout=2)
+
+
+class _Handler(BaseHTTPRequestHandler):
+    def __init__(self, body: bytes, content_encoding: str | None, *args, **kwargs):
+        self._body = body
+        self._content_encoding = content_encoding
+        super().__init__(*args, **kwargs)
+
+    def do_GET(self):  # noqa: N802 - required override name
+        self.send_response(200)
+        if self._content_encoding:
+            self.send_header("Content-Encoding", self._content_encoding)
+        self.send_header("Content-Length", str(len(self._body)))
+        self.end_headers()
+        self.wfile.write(self._body)
+
+    def log_message(self, *args):  # silence test output
+        pass
+
+
+@pytest.fixture
+def encoded_server():
+    servers = []
+
+    def _make(body: bytes, content_encoding: str | None):
+        server = _EncodedBodyServer(body, content_encoding)
+        servers.append(server)
+        return server
+
+    yield _make
+    for server in servers:
+        server.close()
+
+
+def test_fetch_bytes_decompresses_gzip_content_encoding(encoded_server):
+    plain = b'<?xml version="1.0"?><rss><channel><title>T</title></channel></rss>'
+    server = encoded_server(gzip.compress(plain), "gzip")
+    result = fetch.fetch_bytes(server.url, timeout=5.0, user_agent="test")
+    assert result == plain
+
+
+def test_fetch_bytes_decompresses_deflate_content_encoding(encoded_server):
+    plain = b'<?xml version="1.0"?><rss><channel><title>T</title></channel></rss>'
+    server = encoded_server(zlib.compress(plain), "deflate")
+    result = fetch.fetch_bytes(server.url, timeout=5.0, user_agent="test")
+    assert result == plain
+
+
+def test_fetch_bytes_passes_through_identity_content_encoding(encoded_server):
+    plain = b'<?xml version="1.0"?><rss><channel><title>T</title></channel></rss>'
+    server = encoded_server(plain, None)
+    result = fetch.fetch_bytes(server.url, timeout=5.0, user_agent="test")
+    assert result == plain
+
+
+def test_fetch_feed_end_to_end_through_gzip_matches_real_bug(encoded_server):
+    """Reproduces the exact failure mode found on the VM: without the fix,
+    this would return bozo=1 with zero entries instead of raising, silently
+    dropping the feed."""
+    plain = (
+        b'<?xml version="1.0"?><rss version="2.0"><channel><title>T</title>'
+        b"<item><title>Hello</title><link>https://example.com/a</link></item>"
+        b"</channel></rss>"
+    )
+    server = encoded_server(gzip.compress(plain), "gzip")
+    feed = fetch.fetch_feed(server.url, timeout=5.0, user_agent="test")
+    assert not feed.bozo
+    assert len(feed.entries) == 1
+    assert feed.entries[0]["title"] == "Hello"
+
+
+def test_fetch_bytes_raises_on_unsupported_content_encoding(encoded_server):
+    server = encoded_server(b"whatever", "br")
+    with pytest.raises(fetch.FeedFetchError):
+        fetch.fetch_bytes(server.url, timeout=5.0, user_agent="test")
