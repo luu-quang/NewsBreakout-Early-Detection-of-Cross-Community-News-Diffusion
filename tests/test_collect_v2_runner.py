@@ -158,7 +158,7 @@ def test_stale_feed_issues_flags_feed_with_no_new_payload_past_threshold(tmp_pat
     jsonl_store.append_line(heartbeat_path, _heartbeat_record(now - timedelta(hours=8), "x", n_new=1))
     jsonl_store.append_line(heartbeat_path, _heartbeat_record(now - timedelta(hours=1), "x", n_new=0))
 
-    issues = runner.stale_feed_issues({"x"}, "host-a", now)
+    issues = runner.stale_feed_issues({"x": 0}, "host-a", now)
     assert len(issues) == 1 and "x" in issues[0] and "8.0h" in issues[0]
 
 
@@ -168,13 +168,30 @@ def test_stale_feed_issues_does_not_flag_feed_fresh_within_threshold(tmp_path: P
     heartbeat_path = paths.heartbeat_path("host-a", now.strftime("%Y-%m"))
     jsonl_store.append_line(heartbeat_path, _heartbeat_record(now - timedelta(hours=2), "x", n_new=3))
 
-    assert runner.stale_feed_issues({"x"}, "host-a", now) == []
+    assert runner.stale_feed_issues({"x": 0}, "host-a", now) == []
 
 
 def test_stale_feed_issues_does_not_flag_feed_with_no_heartbeat_history(tmp_path: Path, monkeypatch):
     monkeypatch.setattr(paths, "V2_ROOT", tmp_path / "v2")
     now = datetime(2026, 9, 27, 12, 0, 0, tzinfo=timezone.utc)
-    assert runner.stale_feed_issues({"brand-new-feed"}, "host-a", now) == []
+    assert runner.stale_feed_issues({"brand-new-feed": 0}, "host-a", now) == []
+
+
+def test_stale_feed_issues_never_consults_history_when_fresh_this_run(tmp_path: Path, monkeypatch):
+    """Regression test for a real bug found live: on the very first run
+    after redeploying the monitoring feature, feeds that got new payloads
+    THIS run were still flagged stale, because the current run's own record
+    isn't written to the heartbeat file until after this check - so a scan
+    of prior (feature-less) heartbeat history found no evidence of
+    freshness for any feed at all. n_new > 0 right now must short-circuit
+    the history scan entirely, regardless of what heartbeat history says."""
+    monkeypatch.setattr(paths, "V2_ROOT", tmp_path / "v2")
+    now = datetime(2026, 9, 27, 12, 0, 0, tzinfo=timezone.utc)
+    heartbeat_path = paths.heartbeat_path("host-a", now.strftime("%Y-%m"))
+    # Old heartbeat history with no per_feed at all (pre-monitoring-feature schema).
+    jsonl_store.append_line(heartbeat_path, {"run_id": "r0", "run_at": (now - timedelta(hours=1)).isoformat(), "children": {"domestic": {}}})
+
+    assert runner.stale_feed_issues({"baotintuc": 50, "tienphong": 6}, "host-a", now) == []
 
 
 def test_stale_feed_issues_respects_per_feed_override(tmp_path: Path, monkeypatch):
@@ -186,7 +203,7 @@ def test_stale_feed_issues_respects_per_feed_override(tmp_path: Path, monkeypatc
     jsonl_store.append_line(heartbeat_path, _heartbeat_record(now - timedelta(hours=1), "sparse-feed", n_new=0))
 
     # 8h since last new - would fail the default 6h threshold, but not the 12h override
-    assert runner.stale_feed_issues({"sparse-feed"}, "host-a", now) == []
+    assert runner.stale_feed_issues({"sparse-feed": 0}, "host-a", now) == []
 
 
 def test_stale_feed_issues_spans_a_month_boundary(tmp_path: Path, monkeypatch):
@@ -195,7 +212,7 @@ def test_stale_feed_issues_spans_a_month_boundary(tmp_path: Path, monkeypatch):
     last_fresh = now - timedelta(hours=10)  # falls in September's heartbeat file
     jsonl_store.append_line(paths.heartbeat_path("host-a", last_fresh.strftime("%Y-%m")), _heartbeat_record(last_fresh, "x", n_new=1))
 
-    issues = runner.stale_feed_issues({"x"}, "host-a", now)
+    issues = runner.stale_feed_issues({"x": 0}, "host-a", now)
     assert len(issues) == 1 and "10.0h" in issues[0]
 
 
