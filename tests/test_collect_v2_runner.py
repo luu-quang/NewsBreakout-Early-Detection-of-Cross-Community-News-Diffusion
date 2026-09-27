@@ -216,6 +216,22 @@ def test_stale_feed_issues_spans_a_month_boundary(tmp_path: Path, monkeypatch):
     assert len(issues) == 1 and "10.0h" in issues[0]
 
 
+def test_stale_feed_issues_does_not_flag_when_history_is_too_short_to_confirm(tmp_path: Path, monkeypatch):
+    """Regression test for a real bug found live right after deploying: a
+    feed with only ~20 minutes of heartbeat history (fresh redeploy, timer
+    just started) and no n_new > 0 in either of its 2 recorded runs was
+    reported as "no new payload in 24.0h" - a false claim, since the
+    collector had only actually been observed for ~20 minutes, nowhere near
+    the 6h default threshold. Watching for less time than the threshold
+    must never be flagged as stale."""
+    monkeypatch.setattr(paths, "V2_ROOT", tmp_path / "v2")
+    now = datetime(2026, 9, 27, 14, 22, 54, tzinfo=timezone.utc)
+    heartbeat_path = paths.heartbeat_path("host-a", now.strftime("%Y-%m"))
+    jsonl_store.append_line(heartbeat_path, _heartbeat_record(now - timedelta(minutes=20), "x", n_new=0))
+
+    assert runner.stale_feed_issues({"x": 0}, "host-a", now) == []
+
+
 # --- run_once: heartbeat + overall_ok ----------------------------------------------------
 
 
