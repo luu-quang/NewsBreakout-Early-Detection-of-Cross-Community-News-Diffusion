@@ -112,6 +112,19 @@ def test_is_pre_start_none_when_published_at_missing_or_unparseable():
     assert feed_state.is_pre_start("not a date", "domestic", "host-a", "https://a/rss", state) is None
 
 
+def test_is_pre_start_none_when_published_at_is_real_float_nan():
+    """Regression test for a real bug found live: a parquet column of
+    otherwise-string timestamps stores a missing value as float('nan'), not
+    None. NaN is truthy in plain Python (``not float('nan')`` is False), so
+    the old ``not published_at`` guard let it fall through entirely, and
+    ``pd.Timestamp(nan) < pd.Timestamp(started_at)`` silently returns False
+    (NaT comparisons never raise) instead of raising - so a row with
+    genuinely unknown published_at was mislabeled is_pre_start=False."""
+    feed_state.record_first_seen_batch("domestic", "host-a", {"https://a/rss": "a"}, "2026-09-26T00:00:00Z")
+    state = feed_state.load_state()
+    assert feed_state.is_pre_start(float("nan"), "domestic", "host-a", "https://a/rss", state) is None
+
+
 # --- wiring into collect_continuous(), network fully mocked ------------------------------
 
 

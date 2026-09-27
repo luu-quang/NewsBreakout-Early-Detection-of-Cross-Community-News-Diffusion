@@ -80,9 +80,19 @@ def is_pre_start(
     (likely RSS backlog picked up on an early poll, not something caught
     arriving in real time). None if this cannot be determined - no start
     recorded yet for this feed, or ``published_at`` is missing/unparseable -
-    callers must treat None as "unknown", never silently as "not pre-start"."""
+    callers must treat None as "unknown", never silently as "not pre-start".
+
+    ``pd.isna()`` (not just ``not published_at``) is required to catch a
+    missing value stored as a real ``float('nan')`` (as a parquet column of
+    otherwise-string timestamps stores its nulls) - found the hard way: NaN
+    is truthy in plain Python (``not float('nan')`` is ``False``), so it
+    used to fall through this guard entirely, and ``pd.Timestamp(nan) <
+    pd.Timestamp(started_at)`` silently evaluates to ``False`` (NaT
+    comparisons never raise) instead of raising - meaning a row with
+    genuinely unknown ``published_at`` was silently mislabeled
+    ``is_pre_start=False`` instead of ``None``."""
     started_at = get_feed_started_at(state, branch, collector_host, feed_locator)
-    if started_at is None or not published_at:
+    if started_at is None or pd.isna(published_at) or not published_at:
         return None
     try:
         return bool(pd.Timestamp(published_at) < pd.Timestamp(started_at))
