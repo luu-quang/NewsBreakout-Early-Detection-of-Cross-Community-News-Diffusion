@@ -63,6 +63,15 @@ def heartbeat_path(collector_host: str, year_month: str | None = None) -> Path:
     return V2_ROOT / "heartbeat" / f"{collector_host}-{year_month}.jsonl"
 
 
+def discover_hosts(branch: str) -> list[str]:
+    """Collector hosts with an on-disk archive dir for this branch, sorted for
+    deterministic iteration. Empty if the branch has never been collected."""
+    branch_dir = V2_ROOT / _require_branch(branch)
+    if not branch_dir.is_dir():
+        return []
+    return sorted(p.name for p in branch_dir.iterdir() if p.is_dir())
+
+
 def feed_state_path() -> Path:
     """Per-feed first-observed tracking (see ``feed_state.py``). One file for
     every branch/host - small, and there is exactly one of it by design."""

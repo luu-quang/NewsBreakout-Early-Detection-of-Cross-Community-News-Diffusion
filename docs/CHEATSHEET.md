@@ -21,7 +21,7 @@ file này chỉ là bản rút gọn để copy-paste nhanh.
 ## 1. SSH vào VM
 
 ```bash
-ssh -i /path/to/your-key.pem azureuser@20.222.20.253
+ssh -i /path/to/your-key.pem azureuser@<VM_IP>
 ```
 
 Thay `/path/to/your-key.pem` bằng đường dẫn thật tới file `.pem` bạn tải về
