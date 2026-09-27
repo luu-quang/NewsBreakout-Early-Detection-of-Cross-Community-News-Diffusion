@@ -26,10 +26,11 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
+import feedparser
 import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[5]))
-from src.collect_v2 import continuous_write, feed_state, fetch, lock  # noqa: E402
+from src.collect_v2 import continuous_write, feed_diagnostics, feed_state, fetch, lock  # noqa: E402
 from src.collect_v2 import paths as v2_paths  # noqa: E402
 
 DEFAULT_FETCH_TIMEOUT = 15.0
@@ -174,35 +175,72 @@ def collect(collection_mode: str, archive_path: Path, fetch_timeout: float = DEF
     return pd.DataFrame(rows, columns=RAW_COLUMNS)
 
 
+def _fetch_feed_with_diagnostics(publisher_id: str, feed_url: str, fetch_timeout: float) -> tuple[list[dict], dict]:
+    """Like ``_fetch_feed_entries``, but also returns a machine-readable
+    per-feed result (``feed_diagnostics.make_result``) - used only by
+    ``collect_continuous()``; ``collect()`` (v1) keeps using the plain
+    ``_fetch_feed_entries`` above unchanged."""
+    print(f"[rss] fetching {publisher_id}: {feed_url}")
+    try:
+        result = fetch.fetch_bytes_with_meta(feed_url, timeout=fetch_timeout, user_agent=USER_AGENT)
+    except fetch.FeedFetchError as exc:
+        print(f"[rss] fetch failed for {publisher_id}: {exc}")
+        return [], feed_diagnostics.make_result(
+            publisher_id, feed_url, http_status=exc.http_status, content_encoding=None,
+            n_entries=0, n_new=0, error=str(exc),
+        )
+    feed = feedparser.parse(result.data)
+    if getattr(feed, "bozo", False) and not feed.entries:
+        print(f"[rss] parse failed for {publisher_id}: {feed.bozo_exception}")
+        return [], feed_diagnostics.make_result(
+            publisher_id, feed_url, http_status=result.http_status, content_encoding=result.content_encoding,
+            n_entries=0, n_new=0, error=str(feed.bozo_exception),
+        )
+    entries = [dict(entry) for entry in feed.entries]
+    return entries, feed_diagnostics.make_result(
+        publisher_id, feed_url, http_status=result.http_status, content_encoding=result.content_encoding,
+        n_entries=len(entries), n_new=0, error=None,
+    )
+
+
 def collect_continuous(collector_host: str, fetch_timeout: float, run_id: str) -> tuple[int, int]:
     """Fetch every feed once and write it under the v2 continuous layout.
 
     Returns (new_payloads, entries_seen). Writes no candidate Parquet - build
     it offline from the JSONL archive with
-    ``src/collect_v2/build_candidate_table.py``.
+    ``src/collect_v2/build_candidate_table.py``. Also prints one machine-
+    readable per-feed diagnostics line (see ``feed_diagnostics.py``) that
+    ``runner.py`` reads back to catch a feed silently going quiet.
     """
     observed_at = datetime.now(timezone.utc).isoformat()
-    candidates = []
     feeds_with_entries: dict[str, str | None] = {}
+    per_feed_results: list[dict] = []
+    total_entries = 0
+    total_new = 0
     for publisher_id, feed_url in RSS_FEEDS.items():
-        entries = _fetch_feed_entries(publisher_id, feed_url, fetch_timeout)
+        entries, result = _fetch_feed_with_diagnostics(publisher_id, feed_url, fetch_timeout)
         if entries:
             feeds_with_entries[feed_url] = publisher_id
-        for entry in entries:
-            candidates.append(
-                continuous_write.RawCandidate(
-                    url=str(entry.get("link", "")).strip(),
-                    payload=entry,
-                    source_system="rss",
-                    source_locator=feed_url,
-                    publisher_id_hint=publisher_id,
-                )
+        candidates = [
+            continuous_write.RawCandidate(
+                url=str(entry.get("link", "")).strip(),
+                payload=entry,
+                source_system="rss",
+                source_locator=feed_url,
+                publisher_id_hint=publisher_id,
             )
-    _refs, new_count = continuous_write.write_continuous_batch(
-        "domestic", collector_host, candidates, observed_at=observed_at, run_id=run_id
-    )
+            for entry in entries
+        ]
+        _refs, new_count = continuous_write.write_continuous_batch(
+            "domestic", collector_host, candidates, observed_at=observed_at, run_id=run_id
+        )
+        result["n_new"] = new_count
+        per_feed_results.append(result)
+        total_entries += len(candidates)
+        total_new += new_count
     feed_state.record_first_seen_batch("domestic", collector_host, feeds_with_entries, observed_at)
-    return new_count, len(candidates)
+    feed_diagnostics.print_per_feed_results(per_feed_results)
+    return total_new, total_entries
 
 
 def main() -> None:

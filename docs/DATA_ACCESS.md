@@ -7,8 +7,10 @@ Toàn bộ quy trình chỉ chạy trên máy của bạn, từ lúc clone repo 
 
 File output ở đây (`data/processed/v2/articles_master_v2_<ngày>.parquet`)
 **khác** với `data/processed/master/articles_master.parquet` - đó là bản dữ
-liệu đông cứng của Phase 2A (pilot 48h), không đụng tới. File `_v2_` là bản
-snapshot liên tục, cập nhật được nhiều lần, dùng cho phân tích Phase 5 trở đi.
+liệu đông cứng của Phase 2A (snapshot từ đúng 1 lần chạy collector, ngày
+2026-09-20 - mỗi branch domestic/international chỉ chạy đúng 1 lần, không
+phải một cửa sổ pilot 48h), không đụng tới. File `_v2_` là bản snapshot liên
+tục, cập nhật được nhiều lần, dùng cho phân tích Phase 5 trở đi.
 
 ## Bước 0: Clone repo và cài đặt
 

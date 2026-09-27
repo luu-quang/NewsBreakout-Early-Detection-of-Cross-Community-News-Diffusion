@@ -111,6 +111,16 @@ you@vm$ tail -20 /var/log/newsbreakout/backup.log
 you@vm$ cat /opt/newsbreakout/data/raw/v2/heartbeat/$(hostname)-$(date -u +%Y-%m).jsonl | tail -5
 ```
 
+Per-feed detail (which feed is failing, gone quiet, or getting a suspicious
+zero-entry response) doesn't show in the aggregate heartbeat tail above -
+`runner.py` records it separately as `per_feed`/`feed_issues` (see
+`src/collect_v2/feed_diagnostics.py`, `src/collect_v2/runner.py`). Print the
+last 6 runs' per-feed table:
+
+```bash
+you@vm$ sudo -u newsbreakout /opt/newsbreakout/.venv/bin/python3 /opt/newsbreakout/scripts/show_feed_health.py --last 6
+```
+
 ## Re-deploying a newer tag later
 
 ```bash

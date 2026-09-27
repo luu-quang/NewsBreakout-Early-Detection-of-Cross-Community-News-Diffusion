@@ -22,14 +22,32 @@ from __future__ import annotations
 
 import gzip
 import zlib
-from urllib.error import URLError
+from dataclasses import dataclass
+from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
 import feedparser
 
 
 class FeedFetchError(Exception):
-    """A single feed's fetch failed; the caller should skip it and continue."""
+    """A single feed's fetch failed; the caller should skip it and continue.
+
+    ``http_status`` is set when the failure was an HTTP-level error response
+    (e.g. 403, 500) - useful for per-feed monitoring even on the failure path.
+    ``None`` for connection-level failures (DNS, timeout, TLS, ...) that never
+    got an HTTP response at all.
+    """
+
+    def __init__(self, message: str, *, http_status: int | None = None):
+        super().__init__(message)
+        self.http_status = http_status
+
+
+@dataclass
+class FetchResult:
+    data: bytes
+    http_status: int
+    content_encoding: str  # "identity" when the response wasn't encoded
 
 
 def _decode_content_encoding(data: bytes, content_encoding: str, url: str) -> bytes:
@@ -53,15 +71,23 @@ def _decode_content_encoding(data: bytes, content_encoding: str, url: str) -> by
     raise FeedFetchError(f"{url}: unsupported Content-Encoding {content_encoding!r}")
 
 
-def fetch_bytes(url: str, *, timeout: float, user_agent: str) -> bytes:
+def fetch_bytes_with_meta(url: str, *, timeout: float, user_agent: str) -> FetchResult:
     request = Request(url, headers={"User-Agent": user_agent, "Accept-Encoding": "gzip, deflate"})
     try:
         with urlopen(request, timeout=timeout) as response:
             data = response.read()
             content_encoding = response.headers.get("Content-Encoding", "")
+            status = response.status
+    except HTTPError as exc:
+        raise FeedFetchError(f"{url}: HTTP {exc.code} {exc.reason}", http_status=exc.code) from exc
     except (URLError, OSError, ValueError) as exc:
         raise FeedFetchError(f"{url}: {exc}") from exc
-    return _decode_content_encoding(data, content_encoding, url)
+    decoded = _decode_content_encoding(data, content_encoding, url)
+    return FetchResult(data=decoded, http_status=status, content_encoding=content_encoding or "identity")
+
+
+def fetch_bytes(url: str, *, timeout: float, user_agent: str) -> bytes:
+    return fetch_bytes_with_meta(url, timeout=timeout, user_agent=user_agent).data
 
 
 def fetch_feed(url: str, *, timeout: float, user_agent: str):
