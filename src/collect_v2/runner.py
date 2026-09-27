@@ -179,9 +179,19 @@ def hours_since_last_new(collector_host: str, feed_id: str, now: datetime, max_l
     return max_lookback_hours if any_heartbeat else None
 
 
-def stale_feed_issues(feed_ids: set[str], collector_host: str, now: datetime) -> list[str]:
+def stale_feed_issues(current_new_counts: dict[str, int], collector_host: str, now: datetime) -> list[str]:
+    """``current_new_counts``: ``{feed_id: n_new}`` from THIS run alone (not
+    yet written to the heartbeat file when this is called - see
+    ``run_once()``). A feed with ``n_new > 0`` right now is fresh by
+    definition and never needs the history scan at all: relying on
+    heartbeat history for it would incorrectly read as "never fresh",
+    since this run's own record isn't in that file yet. Only feeds with
+    nothing new THIS run fall back to scanning past heartbeats for how long
+    it's actually been."""
     issues = []
-    for feed_id in sorted(feed_ids):
+    for feed_id in sorted(current_new_counts):
+        if current_new_counts[feed_id] > 0:
+            continue
         threshold = FEED_STALE_HOURS_OVERRIDE.get(feed_id, DEFAULT_STALE_HOURS)
         hours = hours_since_last_new(collector_host, feed_id, now, max_lookback_hours=max(threshold * 4, 24.0))
         if hours is not None and hours >= threshold:
@@ -228,13 +238,14 @@ def run_once(collector_host: str, fetch_timeout: float, child_timeout: float) ->
 
     state = feed_state.load_state()
     feed_issues: list[str] = []
-    all_feed_ids: set[str] = set()
+    current_new_counts: dict[str, int] = {}
     for branch, child in record["children"].items():
         per_feed = child.get("per_feed") or []
         feed_issues += classify_feed_issues(per_feed, branch, collector_host, state)
-        all_feed_ids |= {result["feed_id"] for result in per_feed}
+        for result in per_feed:
+            current_new_counts[result["feed_id"]] = result.get("n_new", 0)
     now = datetime.now(timezone.utc)
-    feed_issues += stale_feed_issues(all_feed_ids, collector_host, now)
+    feed_issues += stale_feed_issues(current_new_counts, collector_host, now)
     record["feed_issues"] = feed_issues
     record["ping_ok"] = record["overall_ok"] and not feed_issues
 
