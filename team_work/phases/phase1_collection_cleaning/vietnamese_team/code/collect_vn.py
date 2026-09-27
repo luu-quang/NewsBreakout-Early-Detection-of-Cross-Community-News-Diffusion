@@ -40,6 +40,11 @@ RSS_FEEDS = {
     "thanhnien": "https://thanhnien.vn/rss/home.rss",
     "dantri": "https://dantri.com.vn/rss/home.rss",
     "vietnamnet": "https://vietnamnet.vn/rss/thoi-su.rss",
+    "vietnamplus": "https://www.vietnamplus.vn/rss/trangchu.rss",
+    "baotintuc": "https://baotintuc.vn/rss/trang-chu.rss",
+    "tienphong": "https://tienphong.vn/rss/home.rss",
+    "sggp": "https://sggp.org.vn/rss/home.rss",
+    "nhandan": "https://nhandan.vn/rss/home.rss",
 }
 
 USER_AGENT = "NewsBreakout/1.0 (+https://github.com/luu-quang/NewsBreakout)"

@@ -37,6 +37,11 @@ PUBLISHERS = {
     "thanhnien.vn": ("thanhnien", None),
     "dantri.com.vn": ("dantri", None),
     "vietnamnet.vn": ("vietnamnet", None),
+    "vietnamplus.vn": ("vietnamplus", None),
+    "baotintuc.vn": ("baotintuc", None),
+    "tienphong.vn": ("tienphong", None),
+    "sggp.org.vn": ("sggp", None),
+    "nhandan.vn": ("nhandan", None),
 }
 TRACKING_PARAMS = {
     "utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term",
