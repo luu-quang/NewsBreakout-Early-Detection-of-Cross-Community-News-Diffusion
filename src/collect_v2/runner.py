@@ -14,28 +14,34 @@ reads it back from the child's captured stdout and stores it as
 ``fetch.py``'s gzip fix) that "the collector ran successfully" and "every
 feed actually produced data" are different questions - a run can report
 ``ok: true`` while several feeds silently returned nothing for hours. Two
-independent checks turn specific feed problems into a healthchecks.io
-failure, each naming the feed(s) involved:
+independent checks look at specific feed problems, but they are NOT
+equally urgent, and are deliberately kept separate:
 
 1. ``classify_feed_issues`` - this run's own per-feed results: a fetch
    error, a parse error (bozo) with zero entries, or an established feed
    (has a recorded ``feed_started_at``) that returned zero entries this run
    with no explicit error at all (a legitimate-looking but suspicious empty
-   response).
+   response). These are real problems - they drive ``ping_ok`` and the main
+   healthchecks.io ``/fail``.
 2. ``stale_feed_issues`` - reads back recent heartbeat history (never the
    raw archive - per-feed ``n_new`` in past heartbeats is enough) to catch a
    feed that has gone quiet more gradually: zero new payloads for
    ``FEED_STALE_HOURS_OVERRIDE.get(feed_id, DEFAULT_STALE_HOURS)`` hours.
-   The default (6h) needs real per-feed tuning as the team observes actual
-   posting cadence (some outlets post sparsely overnight) - see
-   ``docs/HANDOFF_2026-09-27.md``.
+   This is expected to fire during normal quiet hours (confirmed live the
+   night of 2026-09-27: several outlets, domestic and international, went
+   quiet for 1.5+ hours around local midnight - see
+   ``docs/HANDOFF_2026-09-27.md`` mục 9) - so it is recorded in the
+   heartbeat and logged, but never fails the main healthchecks.io check.
+   A second, optional healthchecks.io check
+   (``HEALTHCHECKS_STALE_PING_URL``) can track it separately if the team
+   wants a distinct alert for it; unset, it's simply not pinged.
 
 healthchecks.io: reads ``HEALTHCHECKS_PING_URL`` from the environment (never
 committed - set it on the VM at deploy time). A fully successful run (both
-children ok AND no feed issues) issues a GET to that URL; anything else issues
-a POST to ``<url>/fail`` with a short text summary, naming the failing
-child(ren) and/or feed(s). Unset -> skipped with a note, not an error (so
-local/manual runs don't require it).
+children ok AND no real feed errors - staleness does not count) issues a GET
+to that URL; anything else issues a POST to ``<url>/fail`` with a short text
+summary, naming the failing child(ren) and/or feed(s). Unset -> skipped with
+a note, not an error (so local/manual runs don't require it).
 """
 
 from __future__ import annotations
@@ -66,9 +72,36 @@ DEFAULT_CHILD_TIMEOUT = 180.0
 DEFAULT_FETCH_TIMEOUT = 15.0
 
 DEFAULT_STALE_HOURS = 6.0
-# Per-feed overrides for outlets known to post sparsely at certain hours -
-# fill in as the team observes real posting cadence (see module docstring).
-FEED_STALE_HOURS_OVERRIDE: dict[str, float] = {}
+# Per-feed overrides for outlets known to post sparsely at certain hours.
+#
+# TEMPORARY starting values (set 2026-09-27, after a single night's
+# observation - see docs/HANDOFF_2026-09-27.md mục 9). International feeds
+# generally post less frequently than domestic ones, and several domestic
+# feeds (vnexpress, vietnamnet, and the whole Phase 5 batch-1 group) were
+# observed going quiet for 1.5+ hours around local midnight without it being
+# a real problem. These are rough, not-yet-confirmed numbers - TIGHTEN THEM
+# after 3-4 more days of real `scripts/show_feed_health.py` history once the
+# team has actually observed each feed's normal quiet hours, rather than
+# guessing from one night.
+FEED_STALE_HOURS_OVERRIDE: dict[str, float] = {
+    # International feeds - post less frequently in general.
+    "bbc.com": 18.0,
+    "channelnewsasia.com": 18.0,
+    "scmp.com": 18.0,
+    "asia.nikkei.com": 18.0,
+    "straitstimes.com": 18.0,
+    # Domestic feeds observed quiet overnight (vnexpress, vietnamnet) or
+    # newly added in Phase 5 batch 1 (still building up a real posting
+    # history - so an occasional quiet stretch is expected, not a signal).
+    "vnexpress": 10.0,
+    "vietnamnet": 10.0,
+    "vietnamplus": 10.0,
+    "baotintuc": 10.0,
+    "tienphong": 10.0,
+    "sggp": 10.0,
+    "nhandan": 10.0,
+    # tuoitre, thanhnien, dantri: no override yet - keep the 6h default.
+}
 
 
 def _parse_counts(stdout: str) -> tuple[int | None, int | None]:
@@ -206,10 +239,10 @@ def stale_feed_issues(current_new_counts: dict[str, int], collector_host: str, n
     return issues
 
 
-def ping_healthchecks(ok: bool, summary: str) -> None:
-    base_url = os.environ.get("HEALTHCHECKS_PING_URL")
+def ping_healthchecks(ok: bool, summary: str, *, url_env: str = "HEALTHCHECKS_PING_URL") -> None:
+    base_url = os.environ.get(url_env)
     if not base_url:
-        print("[runner] HEALTHCHECKS_PING_URL not set, skipping ping")
+        print(f"[runner] {url_env} not set, skipping ping")
         return
     url = base_url if ok else base_url.rstrip("/") + "/fail"
     try:
@@ -219,6 +252,20 @@ def ping_healthchecks(ok: bool, summary: str) -> None:
             response.read()
     except Exception as exc:  # best-effort: a monitoring ping must never crash the runner
         print(f"[runner] healthchecks ping failed: {exc}")
+
+
+def ping_healthchecks_stale(stale_issues: list[str]) -> None:
+    """Optional second healthchecks.io check, only pinged at all if
+    ``HEALTHCHECKS_STALE_PING_URL`` is set - staleness is expected during
+    normal quiet hours (see module docstring), so most deployments won't
+    want a second alert channel for it at all, and unset must stay silent
+    rather than printing a skip note every single run."""
+    if not os.environ.get("HEALTHCHECKS_STALE_PING_URL"):
+        return
+    if stale_issues:
+        ping_healthchecks(False, "stale feeds: " + "; ".join(stale_issues), url_env="HEALTHCHECKS_STALE_PING_URL")
+    else:
+        ping_healthchecks(True, "ok", url_env="HEALTHCHECKS_STALE_PING_URL")
 
 
 def run_once(collector_host: str, fetch_timeout: float, child_timeout: float) -> dict:
@@ -244,7 +291,7 @@ def run_once(collector_host: str, fetch_timeout: float, child_timeout: float) ->
     }
 
     state = feed_state.load_state()
-    feed_issues: list[str] = []
+    feed_issues: list[str] = []  # real problems: fetch/parse errors, established feed with 0 entries
     current_new_counts: dict[str, int] = {}
     for branch, child in record["children"].items():
         per_feed = child.get("per_feed") or []
@@ -252,8 +299,10 @@ def run_once(collector_host: str, fetch_timeout: float, child_timeout: float) ->
         for result in per_feed:
             current_new_counts[result["feed_id"]] = result.get("n_new", 0)
     now = datetime.now(timezone.utc)
-    feed_issues += stale_feed_issues(current_new_counts, collector_host, now)
+    stale_issues = stale_feed_issues(current_new_counts, collector_host, now)  # informational only - never fails the main check
+
     record["feed_issues"] = feed_issues
+    record["stale_feed_issues"] = stale_issues
     record["ping_ok"] = record["overall_ok"] and not feed_issues
 
     jsonl_store.append_line(paths.heartbeat_path(collector_host), record)
@@ -266,6 +315,7 @@ def run_once(collector_host: str, fetch_timeout: float, child_timeout: float) ->
             feed_summary = "feed issues: " + "; ".join(feed_issues)
             failures = f"{failures}; {feed_summary}" if failures else feed_summary
         ping_healthchecks(False, failures)
+    ping_healthchecks_stale(stale_issues)
     return record
 
 

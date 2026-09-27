@@ -60,7 +60,10 @@ def format_table(records: list[dict]) -> str:
                 lines.append("  ".join(row) + "  " + (result.get("error") or ""))
         issues = record.get("feed_issues") or []
         if issues:
-            lines.append(f"  -> feed_issues: {'; '.join(issues)}")
+            lines.append(f"  -> feed_issues (real problem, drives /fail): {'; '.join(issues)}")
+        stale = record.get("stale_feed_issues") or []
+        if stale:
+            lines.append(f"  -> stale_feed_issues (informational only, does not fail the check): {'; '.join(stale)}")
     return "\n".join(lines)
 
 

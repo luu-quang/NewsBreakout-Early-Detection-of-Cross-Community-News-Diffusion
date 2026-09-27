@@ -51,11 +51,27 @@ print("Entries seen this run : {seen}")
 print("New payloads archived : {new}")
 """
 
+# A feed that fetched fine (real entries, no error) but had nothing NEW this
+# run - the "stale, not broken" case that must never fail the main check.
+STUB_QUIET_BUT_HEALTHY = """
+import json
+print("[rss] fetching vnexpress: https://vnexpress.net/rss/tin-moi-nhat.rss")
+result = {{
+    "feed_id": "vnexpress", "feed_url": "https://vnexpress.net/rss/tin-moi-nhat.rss",
+    "http_status": 200, "content_encoding": "identity", "n_entries": 47, "n_new": 0,
+    "error": None,
+}}
+print("PER_FEED_JSON:" + json.dumps([result]))
+print("Entries seen this run : {seen}")
+print("New payloads archived : {new}")
+"""
+
 
 @pytest.fixture(autouse=True)
 def _isolated_v2_root(tmp_path: Path, monkeypatch):
     monkeypatch.setattr(paths, "V2_ROOT", tmp_path / "v2")
     monkeypatch.delenv("HEALTHCHECKS_PING_URL", raising=False)
+    monkeypatch.delenv("HEALTHCHECKS_STALE_PING_URL", raising=False)
     yield
 
 
@@ -281,6 +297,61 @@ def test_run_once_gzip_bug_reproduction_marks_ping_not_ok_and_names_the_feed(tmp
     assert record["overall_ok"] is True  # both children exited 0 - not a process crash
     assert record["ping_ok"] is False  # but the content problem must still be caught
     assert any("vietnamplus" in issue for issue in record["feed_issues"])
+
+
+def test_run_once_stale_alone_never_fails_the_main_check(tmp_path: Path, monkeypatch):
+    """The instructed split: a real error (fetch/parse fail, child crash)
+    must fail the main check; staleness alone must NOT - it's expected
+    during normal quiet hours (see docs/HANDOFF_2026-09-27.md mục 9) and
+    only goes into stale_feed_issues / the optional second check."""
+    quiet_script = _write_stub(tmp_path, "quiet.py", STUB_QUIET_BUT_HEALTHY.format(seen=47, new=0))
+    ok_script = _write_stub(tmp_path, "ok.py", STUB_SUCCESS.format(seen=5, new=1))
+    monkeypatch.setattr(runner, "COLLECT_VN", quiet_script)
+    monkeypatch.setattr(runner, "COLLECT_INTL", ok_script)
+    old = datetime.now(timezone.utc) - timedelta(hours=15)
+    jsonl_store.append_line(paths.heartbeat_path("host-a"), _heartbeat_record(old, "vnexpress", n_new=0))
+
+    record = runner.run_once("host-a", fetch_timeout=5.0, child_timeout=5.0)
+
+    assert record["feed_issues"] == []  # no real error
+    assert any("vnexpress" in issue for issue in record["stale_feed_issues"])  # but flagged as stale
+    assert record["ping_ok"] is True  # staleness alone must not fail the main check
+
+
+def test_run_once_stale_pings_second_check_only_when_configured(tmp_path: Path, monkeypatch, capturing_server):
+    port = capturing_server.server_address[1]
+    monkeypatch.setenv("HEALTHCHECKS_PING_URL", f"http://127.0.0.1:{port}/ping/main")
+    monkeypatch.setenv("HEALTHCHECKS_STALE_PING_URL", f"http://127.0.0.1:{port}/ping/stale")
+    quiet_script = _write_stub(tmp_path, "quiet.py", STUB_QUIET_BUT_HEALTHY.format(seen=47, new=0))
+    ok_script = _write_stub(tmp_path, "ok.py", STUB_SUCCESS.format(seen=5, new=1))
+    monkeypatch.setattr(runner, "COLLECT_VN", quiet_script)
+    monkeypatch.setattr(runner, "COLLECT_INTL", ok_script)
+    old = datetime.now(timezone.utc) - timedelta(hours=15)
+    jsonl_store.append_line(paths.heartbeat_path("host-a"), _heartbeat_record(old, "vnexpress", n_new=0))
+
+    runner.run_once("host-a", fetch_timeout=5.0, child_timeout=5.0)
+
+    requests_by_path = {path: (method, body) for method, path, body in capturing_server.requests}
+    assert requests_by_path["/ping/main"][0] == "GET"  # main check: staleness doesn't fail it
+    assert requests_by_path["/ping/stale/fail"][0] == "POST"  # stale check: this IS what it's for
+    assert b"vnexpress" in requests_by_path["/ping/stale/fail"][1]
+
+
+def test_run_once_stale_second_check_skipped_entirely_when_unconfigured(tmp_path: Path, monkeypatch, capturing_server):
+    port = capturing_server.server_address[1]
+    monkeypatch.setenv("HEALTHCHECKS_PING_URL", f"http://127.0.0.1:{port}/ping/main")
+    # HEALTHCHECKS_STALE_PING_URL deliberately left unset
+    quiet_script = _write_stub(tmp_path, "quiet.py", STUB_QUIET_BUT_HEALTHY.format(seen=47, new=0))
+    ok_script = _write_stub(tmp_path, "ok.py", STUB_SUCCESS.format(seen=5, new=1))
+    monkeypatch.setattr(runner, "COLLECT_VN", quiet_script)
+    monkeypatch.setattr(runner, "COLLECT_INTL", ok_script)
+    old = datetime.now(timezone.utc) - timedelta(hours=15)
+    jsonl_store.append_line(paths.heartbeat_path("host-a"), _heartbeat_record(old, "vnexpress", n_new=0))
+
+    runner.run_once("host-a", fetch_timeout=5.0, child_timeout=5.0)
+
+    assert len(capturing_server.requests) == 1  # only the main check's GET - no second ping attempted
+    assert capturing_server.requests[0][1] == "/ping/main"
 
 
 def test_run_once_pings_fail_when_only_a_feed_issue_is_present(tmp_path: Path, monkeypatch, capturing_server):

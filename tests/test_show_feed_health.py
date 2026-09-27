@@ -63,8 +63,18 @@ def test_format_table_includes_feed_row_and_error():
 
 
 def test_format_table_includes_feed_issues_line_when_present():
-    record = _record("2026-09-27T10:00:00Z", "x", n_entries=5, n_new=1)
-    record["feed_issues"] = ["x: no new payload in 8.0h (threshold 6.0h)"]
+    record = _record("2026-09-27T10:00:00Z", "x", n_entries=0, n_new=0, error="fetch failed: timeout")
+    record["feed_issues"] = ["x: fetch failed: timeout"]
     table = show_feed_health.format_table([record])
     assert "feed_issues" in table
+    assert "drives /fail" in table
+
+
+def test_format_table_includes_stale_feed_issues_line_separately():
+    record = _record("2026-09-27T10:00:00Z", "x", n_entries=5, n_new=0)
+    record["stale_feed_issues"] = ["x: no new payload in 8.0h (threshold 6.0h)"]
+    table = show_feed_health.format_table([record])
+    assert "stale_feed_issues" in table
+    assert "does not fail the check" in table
+    assert "no new payload in 8.0h" in table
     assert "no new payload in 8.0h" in table
