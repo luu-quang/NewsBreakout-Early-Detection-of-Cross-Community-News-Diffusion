@@ -7,16 +7,20 @@ file này chỉ là bản rút gọn để copy-paste nhanh.
 
 ## Trạng thái hiện tại (cập nhật 2026-09-27)
 
-- Tag đang chạy trên VM: **`collector-v2.1`** (PR #13, merge `8ae4e29`).
+- Tag đang chạy trên VM: **`collector-v2.2`** (PR #14, merge `5cf2dac`) - fix
+  bug gzip Content-Encoding (xem `docs/HANDOFF_2026-09-27.md` mục 3c).
 - 10 feed VN đang chạy: 5 feed gốc (vnexpress, tuoitre, thanhnien, dantri,
   vietnamnet) + 5 feed Phase 5 batch 1 (vietnamplus, baotintuc, tienphong,
-  sggp, nhandan) - đã verify fresh thật trên VM sau redeploy.
+  sggp, nhandan) - đã verify fresh thật trên VM sau redeploy v2.2 (trước đó ở
+  v2.1, 4/5 feed batch 1 bị bug gzip nên không ra dữ liệu, đã fix).
 - Batch 2 (chưa làm): VTC News đang bị giữ lại (feed "tin-moi-nhat" nhưng bài
   top đứng yên ở 24/09 qua 2 lần check độc lập - cần theo dõi thêm trước khi
   thêm). Còn thiếu ứng viên cho: Znews (chưa tìm ra feed), VOV (chỉ có feed cũ
   2025 hoặc feed chuyên mục, không dùng được), Vietnamnet feed thứ 2 (chưa tìm
   ra URL). Lao Động, Người Lao Động, Pháp Luật TP.HCM đã bị loại hẳn (xem mục
   8 bên dưới) - không cần tìm lại trừ khi có URL khác.
+- Giám sát theo từng feed (per-feed monitoring) đã thêm - xem mục 2 bên dưới,
+  lệnh `show_feed_health.py`.
 
 ## 1. SSH vào VM
 
@@ -35,7 +39,13 @@ you@vm$ systemctl list-timers | grep newsbreakout
 you@vm$ tail -50 /var/log/newsbreakout/collector.log
 you@vm$ tail -20 /var/log/newsbreakout/backup.log
 you@vm$ cat /opt/newsbreakout/data/raw/v2/heartbeat/$(hostname)-$(date -u +%Y-%m).jsonl | tail -5
+you@vm$ sudo -u newsbreakout /opt/newsbreakout/.venv/bin/python3 /opt/newsbreakout/scripts/show_feed_health.py --last 6
 ```
+
+`show_feed_health.py` in ra bảng per-feed (http_status, content_encoding,
+n_entries, n_new, error) của N lần chạy gần nhất - đây là cách phát hiện
+đúng loại bug gzip đã gặp (child báo `ok: true` nhưng 1 feed cụ thể âm thầm
+0 entry) mà không cần đọc log dài dòng.
 
 ## 3. Chạy tay một lần để verify (trước khi tin tưởng timer)
 

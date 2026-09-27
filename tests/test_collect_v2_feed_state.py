@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pytest
 
-from src.collect_v2 import feed_state, paths
+from src.collect_v2 import feed_diagnostics, feed_state, paths
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 COLLECT_VN_PATH = REPO_ROOT / "team_work/phases/phase1_collection_cleaning/vietnamese_team/code/collect_vn.py"
@@ -115,10 +115,19 @@ def test_is_pre_start_none_when_published_at_missing_or_unparseable():
 # --- wiring into collect_continuous(), network fully mocked ------------------------------
 
 
+def _diag(feed_id: str, feed_url: str, n_entries: int) -> dict:
+    return feed_diagnostics.make_result(
+        feed_id, feed_url, http_status=200, content_encoding="identity", n_entries=n_entries, n_new=0, error=None
+    )
+
+
 def test_collect_vn_continuous_records_feed_start_once_across_two_runs(monkeypatch):
     collect_vn = _load_module("collect_vn_feedstate_check", COLLECT_VN_PATH)
     entry = {"link": "https://vnexpress.net/a.html", "title": "T"}
-    monkeypatch.setattr(collect_vn, "_fetch_feed_entries", lambda publisher_id, feed_url, timeout: [entry])
+    monkeypatch.setattr(
+        collect_vn, "_fetch_feed_with_diagnostics",
+        lambda publisher_id, feed_url, timeout: ([entry], _diag(publisher_id, feed_url, 1)),
+    )
 
     collect_vn.collect_continuous("host-a", fetch_timeout=5.0, run_id="r1")
     state1 = feed_state.load_state()
@@ -141,9 +150,10 @@ def test_collect_vn_continuous_only_new_feed_gets_a_new_start(monkeypatch):
 
     # Run 1: only vnexpress returns anything (simulates the other feeds being down/empty).
     def fetch_only_vnexpress(publisher_id, feed_url, timeout):
-        return [entry] if publisher_id == "vnexpress" else []
+        entries = [entry] if publisher_id == "vnexpress" else []
+        return entries, _diag(publisher_id, feed_url, len(entries))
 
-    monkeypatch.setattr(collect_vn, "_fetch_feed_entries", fetch_only_vnexpress)
+    monkeypatch.setattr(collect_vn, "_fetch_feed_with_diagnostics", fetch_only_vnexpress)
     collect_vn.collect_continuous("host-a", fetch_timeout=5.0, run_id="r1")
     state1 = feed_state.load_state()
     vnexpress_url = collect_vn.RSS_FEEDS["vnexpress"]
@@ -152,7 +162,10 @@ def test_collect_vn_continuous_only_new_feed_gets_a_new_start(monkeypatch):
     assert feed_state.get_feed_started_at(state1, "domestic", "host-a", tuoitre_url) is None
 
     # Run 2 ("Phase 5"-style): tuoitre now returns something too.
-    monkeypatch.setattr(collect_vn, "_fetch_feed_entries", lambda publisher_id, feed_url, timeout: [entry])
+    monkeypatch.setattr(
+        collect_vn, "_fetch_feed_with_diagnostics",
+        lambda publisher_id, feed_url, timeout: ([entry], _diag(publisher_id, feed_url, 1)),
+    )
     collect_vn.collect_continuous("host-a", fetch_timeout=5.0, run_id="r2")
     state2 = feed_state.load_state()
     assert feed_state.get_feed_started_at(state2, "domestic", "host-a", vnexpress_url) == feed_state.get_feed_started_at(
@@ -164,7 +177,10 @@ def test_collect_vn_continuous_only_new_feed_gets_a_new_start(monkeypatch):
 def test_collect_intl_continuous_records_feed_start(monkeypatch):
     collect_intl = _load_module("collect_intl_feedstate_check", COLLECT_INTL_PATH)
     entry = {"link": "https://www.bbc.com/news/x", "title": "Vietnam story"}
-    monkeypatch.setattr(collect_intl, "_fetch_feed_entries", lambda domain, feed_url, timeout: [entry])
+    monkeypatch.setattr(
+        collect_intl, "_fetch_feed_with_diagnostics",
+        lambda domain, feed_url, timeout: ([entry], _diag(domain, feed_url, 1)),
+    )
 
     collect_intl.collect_continuous("host-a", fetch_timeout=5.0, run_id="r1")
     state = feed_state.load_state()

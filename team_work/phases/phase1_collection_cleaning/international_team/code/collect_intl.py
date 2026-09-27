@@ -30,11 +30,12 @@ from urllib.parse import urlencode, urlparse
 from urllib.request import Request, urlopen
 
 import dateutil.parser
+import feedparser
 import pandas as pd
 from dateutil.tz import gettz
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[5]))
-from src.collect_v2 import continuous_write, feed_state, fetch, lock  # noqa: E402
+from src.collect_v2 import continuous_write, feed_diagnostics, feed_state, fetch, lock  # noqa: E402
 from src.collect_v2 import paths as v2_paths  # noqa: E402
 
 GDELT_DOC_URL = "https://api.gdeltproject.org/api/v2/doc/doc"
@@ -279,36 +280,74 @@ def merge_with_history(new_df: pd.DataFrame, output_path: Path) -> pd.DataFrame:
     return first_rows.reset_index(drop=True)[RAW_COLUMNS].sort_values("first_seen_at").reset_index(drop=True)
 
 
+def _fetch_feed_with_diagnostics(domain: str, feed_url: str, fetch_timeout: float) -> tuple[list[dict], dict]:
+    """Like ``_fetch_feed_entries``, but also returns a machine-readable
+    per-feed result (``feed_diagnostics.make_result``) - used only by
+    ``collect_continuous()``; ``fetch_publisher_rss()`` (v1) keeps using the
+    plain ``_fetch_feed_entries`` above unchanged."""
+    print(f"[rss] fetching {domain}: {feed_url}")
+    try:
+        result = fetch.fetch_bytes_with_meta(feed_url, timeout=fetch_timeout, user_agent=USER_AGENT)
+    except fetch.FeedFetchError as exc:
+        print(f"[rss] fetch failed for {domain}: {exc}")
+        return [], feed_diagnostics.make_result(
+            domain, feed_url, http_status=exc.http_status, content_encoding=None,
+            n_entries=0, n_new=0, error=str(exc),
+        )
+    feed = feedparser.parse(result.data)
+    if getattr(feed, "bozo", False) and not feed.entries:
+        print(f"[rss] parse failed for {domain}: {feed.bozo_exception}")
+        return [], feed_diagnostics.make_result(
+            domain, feed_url, http_status=result.http_status, content_encoding=result.content_encoding,
+            n_entries=0, n_new=0, error=str(feed.bozo_exception),
+        )
+    entries = [dict(entry) for entry in feed.entries]
+    return entries, feed_diagnostics.make_result(
+        domain, feed_url, http_status=result.http_status, content_encoding=result.content_encoding,
+        n_entries=len(entries), n_new=0, error=None,
+    )
+
+
 def collect_continuous(collector_host: str, fetch_timeout: float, run_id: str) -> tuple[int, int]:
     """Fetch every direct RSS feed once and write it under the v2 continuous
     layout. Never calls GDELT - GDELT is a supplementary/backfill source, not
     meant to be polled every few minutes.
 
     Returns (new_payloads, entries_seen). Writes no candidate Parquet - build
-    it offline with ``src/collect_v2/build_candidate_table.py``.
+    it offline with ``src/collect_v2/build_candidate_table.py``. Also prints
+    one machine-readable per-feed diagnostics line (see
+    ``feed_diagnostics.py``) that ``runner.py`` reads back to catch a feed
+    silently going quiet.
     """
     observed_at = datetime.now(timezone.utc).isoformat()
-    candidates = []
     feeds_with_entries: dict[str, str | None] = {}
+    per_feed_results: list[dict] = []
+    total_entries = 0
+    total_new = 0
     for domain, feed_url in RSS_FEEDS.items():
-        entries = _fetch_feed_entries(domain, feed_url, fetch_timeout)
+        entries, result = _fetch_feed_with_diagnostics(domain, feed_url, fetch_timeout)
         if entries:
             feeds_with_entries[feed_url] = domain
-        for entry in entries:
-            candidates.append(
-                continuous_write.RawCandidate(
-                    url=str(entry.get("link", "")).strip(),
-                    payload=entry,
-                    source_system="rss",
-                    source_locator=feed_url,
-                    publisher_id_hint=domain,
-                )
+        candidates = [
+            continuous_write.RawCandidate(
+                url=str(entry.get("link", "")).strip(),
+                payload=entry,
+                source_system="rss",
+                source_locator=feed_url,
+                publisher_id_hint=domain,
             )
-    _refs, new_count = continuous_write.write_continuous_batch(
-        "international", collector_host, candidates, observed_at=observed_at, run_id=run_id
-    )
+            for entry in entries
+        ]
+        _refs, new_count = continuous_write.write_continuous_batch(
+            "international", collector_host, candidates, observed_at=observed_at, run_id=run_id
+        )
+        result["n_new"] = new_count
+        per_feed_results.append(result)
+        total_entries += len(candidates)
+        total_new += new_count
     feed_state.record_first_seen_batch("international", collector_host, feeds_with_entries, observed_at)
-    return new_count, len(candidates)
+    feed_diagnostics.print_per_feed_results(per_feed_results)
+    return total_new, total_entries
 
 
 def main() -> None:

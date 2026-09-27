@@ -9,11 +9,12 @@ from __future__ import annotations
 import http.server
 import json
 import threading
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
 
-from src.collect_v2 import jsonl_store, paths, runner
+from src.collect_v2 import feed_diagnostics, feed_state, jsonl_store, paths, runner
 
 STUB_SUCCESS = """
 print("[rss] fetching stub: http://example")
@@ -30,6 +31,24 @@ sys.exit(3)
 STUB_HANGS = """
 import time
 time.sleep(30)
+"""
+
+# Reproduces the exact real-world bug (see docs/HANDOFF_2026-09-27.md mục 3c):
+# a feed that fetches fine (HTTP 200) but whose CDN gzip-compresses the body
+# unconditionally - feedparser can't parse the raw gzip bytes as XML, bozo=1,
+# zero entries - and the OLD runner had no way to see this at all.
+STUB_GZIP_BUG = """
+import json
+print("[rss] fetching vietnamplus: https://www.vietnamplus.vn/rss/trangchu.rss")
+print("[rss] parse failed for vietnamplus: <unknown>:2:0: not well-formed (invalid token)")
+result = {{
+    "feed_id": "vietnamplus", "feed_url": "https://www.vietnamplus.vn/rss/trangchu.rss",
+    "http_status": 200, "content_encoding": "gzip", "n_entries": 0, "n_new": 0,
+    "error": "<unknown>:2:0: not well-formed (invalid token)",
+}}
+print("PER_FEED_JSON:" + json.dumps([result]))
+print("Entries seen this run : {seen}")
+print("New payloads archived : {new}")
 """
 
 
@@ -52,7 +71,10 @@ def _write_stub(tmp_path: Path, name: str, body: str) -> Path:
 def test_run_child_success_parses_counts(tmp_path: Path):
     script = _write_stub(tmp_path, "ok.py", STUB_SUCCESS.format(seen=10, new=3))
     result = runner.run_child(script, "host-a", fetch_timeout=5.0, child_timeout=5.0)
-    assert result == {"ok": True, "duration_seconds": result["duration_seconds"], "new_payloads": 3, "entries_seen": 10, "error": None}
+    assert result == {
+        "ok": True, "duration_seconds": result["duration_seconds"], "new_payloads": 3, "entries_seen": 10,
+        "error": None, "per_feed": [],
+    }
 
 
 def test_run_child_nonzero_exit_captured_not_raised(tmp_path: Path):
@@ -74,6 +96,107 @@ def test_run_child_missing_script_captured_not_raised(tmp_path: Path):
     result = runner.run_child(tmp_path / "does_not_exist.py", "host-a", fetch_timeout=5.0, child_timeout=5.0)
     assert result["ok"] is False
     assert result["error"]
+
+
+def test_run_child_captures_per_feed_json(tmp_path: Path):
+    script = _write_stub(tmp_path, "gzipbug.py", STUB_GZIP_BUG.format(seen=0, new=0))
+    result = runner.run_child(script, "host-a", fetch_timeout=5.0, child_timeout=5.0)
+    assert result["ok"] is True  # the child itself exits 0 - this is a silent content problem, not a crash
+    assert result["per_feed"] == [
+        {
+            "feed_id": "vietnamplus", "feed_url": "https://www.vietnamplus.vn/rss/trangchu.rss",
+            "http_status": 200, "content_encoding": "gzip", "n_entries": 0, "n_new": 0,
+            "error": "<unknown>:2:0: not well-formed (invalid token)",
+        }
+    ]
+
+
+# --- classify_feed_issues: this run's own per-feed results --------------------------------
+
+
+def test_classify_feed_issues_flags_explicit_error():
+    per_feed = [feed_diagnostics.make_result("x", "url-x", http_status=200, content_encoding="gzip", n_entries=0, n_new=0, error="bozo: bad xml")]
+    issues = runner.classify_feed_issues(per_feed, "domestic", "host-a", state={})
+    assert len(issues) == 1
+    assert "x" in issues[0] and "bozo: bad xml" in issues[0]
+
+
+def test_classify_feed_issues_flags_established_feed_with_zero_entries_no_error():
+    feed_state.record_first_seen_batch("domestic", "host-a", {"url-x": "x"}, "2026-09-01T00:00:00Z")
+    state = feed_state.load_state()
+    per_feed = [feed_diagnostics.make_result("x", "url-x", http_status=200, content_encoding="identity", n_entries=0, n_new=0, error=None)]
+    issues = runner.classify_feed_issues(per_feed, "domestic", "host-a", state)
+    assert len(issues) == 1 and "x" in issues[0]
+
+
+def test_classify_feed_issues_does_not_flag_brand_new_feed_with_zero_entries():
+    per_feed = [feed_diagnostics.make_result("x", "url-x", http_status=200, content_encoding="identity", n_entries=0, n_new=0, error=None)]
+    issues = runner.classify_feed_issues(per_feed, "domestic", "host-a", state={})  # no feed_started_at recorded anywhere
+    assert issues == []
+
+
+def test_classify_feed_issues_does_not_flag_healthy_feed():
+    per_feed = [feed_diagnostics.make_result("x", "url-x", http_status=200, content_encoding="identity", n_entries=5, n_new=2, error=None)]
+    issues = runner.classify_feed_issues(per_feed, "domestic", "host-a", state={})
+    assert issues == []
+
+
+# --- stale_feed_issues: reads only the heartbeat, never the raw archive -------------------
+
+
+def _heartbeat_record(run_at: datetime, feed_id: str, n_new: int) -> dict:
+    return {
+        "run_id": "r", "run_at": run_at.isoformat(), "collector_host": "host-a",
+        "children": {"domestic": {"per_feed": [feed_diagnostics.make_result(feed_id, "url-x", http_status=200, content_encoding="identity", n_entries=1, n_new=n_new, error=None)]}},
+    }
+
+
+def test_stale_feed_issues_flags_feed_with_no_new_payload_past_threshold(tmp_path: Path, monkeypatch):
+    monkeypatch.setattr(paths, "V2_ROOT", tmp_path / "v2")
+    now = datetime(2026, 9, 27, 12, 0, 0, tzinfo=timezone.utc)
+    heartbeat_path = paths.heartbeat_path("host-a", now.strftime("%Y-%m"))
+    jsonl_store.append_line(heartbeat_path, _heartbeat_record(now - timedelta(hours=8), "x", n_new=1))
+    jsonl_store.append_line(heartbeat_path, _heartbeat_record(now - timedelta(hours=1), "x", n_new=0))
+
+    issues = runner.stale_feed_issues({"x"}, "host-a", now)
+    assert len(issues) == 1 and "x" in issues[0] and "8.0h" in issues[0]
+
+
+def test_stale_feed_issues_does_not_flag_feed_fresh_within_threshold(tmp_path: Path, monkeypatch):
+    monkeypatch.setattr(paths, "V2_ROOT", tmp_path / "v2")
+    now = datetime(2026, 9, 27, 12, 0, 0, tzinfo=timezone.utc)
+    heartbeat_path = paths.heartbeat_path("host-a", now.strftime("%Y-%m"))
+    jsonl_store.append_line(heartbeat_path, _heartbeat_record(now - timedelta(hours=2), "x", n_new=3))
+
+    assert runner.stale_feed_issues({"x"}, "host-a", now) == []
+
+
+def test_stale_feed_issues_does_not_flag_feed_with_no_heartbeat_history(tmp_path: Path, monkeypatch):
+    monkeypatch.setattr(paths, "V2_ROOT", tmp_path / "v2")
+    now = datetime(2026, 9, 27, 12, 0, 0, tzinfo=timezone.utc)
+    assert runner.stale_feed_issues({"brand-new-feed"}, "host-a", now) == []
+
+
+def test_stale_feed_issues_respects_per_feed_override(tmp_path: Path, monkeypatch):
+    monkeypatch.setattr(paths, "V2_ROOT", tmp_path / "v2")
+    monkeypatch.setitem(runner.FEED_STALE_HOURS_OVERRIDE, "sparse-feed", 12.0)
+    now = datetime(2026, 9, 27, 12, 0, 0, tzinfo=timezone.utc)
+    heartbeat_path = paths.heartbeat_path("host-a", now.strftime("%Y-%m"))
+    jsonl_store.append_line(heartbeat_path, _heartbeat_record(now - timedelta(hours=8), "sparse-feed", n_new=1))
+    jsonl_store.append_line(heartbeat_path, _heartbeat_record(now - timedelta(hours=1), "sparse-feed", n_new=0))
+
+    # 8h since last new - would fail the default 6h threshold, but not the 12h override
+    assert runner.stale_feed_issues({"sparse-feed"}, "host-a", now) == []
+
+
+def test_stale_feed_issues_spans_a_month_boundary(tmp_path: Path, monkeypatch):
+    monkeypatch.setattr(paths, "V2_ROOT", tmp_path / "v2")
+    now = datetime(2026, 10, 1, 2, 0, 0, tzinfo=timezone.utc)  # 2h into the new month
+    last_fresh = now - timedelta(hours=10)  # falls in September's heartbeat file
+    jsonl_store.append_line(paths.heartbeat_path("host-a", last_fresh.strftime("%Y-%m")), _heartbeat_record(last_fresh, "x", n_new=1))
+
+    issues = runner.stale_feed_issues({"x"}, "host-a", now)
+    assert len(issues) == 1 and "10.0h" in issues[0]
 
 
 # --- run_once: heartbeat + overall_ok ----------------------------------------------------
@@ -108,6 +231,39 @@ def test_run_once_one_child_failing_marks_overall_not_ok(tmp_path: Path, monkeyp
     assert record["children"]["international"]["ok"] is False
     # the successful child's result must still be recorded, not discarded
     assert record["children"]["domestic"]["new_payloads"] == 1
+
+
+def test_run_once_gzip_bug_reproduction_marks_ping_not_ok_and_names_the_feed(tmp_path: Path, monkeypatch):
+    """End to end reproduction of the real incident (docs/HANDOFF_2026-09-27.md
+    mục 3c): a feed's child process exits 0 (``overall_ok`` stays True - it
+    isn't a crash) but its own per-feed result shows a bozo parse error with
+    zero entries. The runner must now catch this and refuse to ping success."""
+    ok_script = _write_stub(tmp_path, "ok.py", STUB_SUCCESS.format(seen=5, new=1))
+    gzip_bug_script = _write_stub(tmp_path, "gzipbug.py", STUB_GZIP_BUG.format(seen=0, new=0))
+    monkeypatch.setattr(runner, "COLLECT_VN", gzip_bug_script)
+    monkeypatch.setattr(runner, "COLLECT_INTL", ok_script)
+
+    record = runner.run_once("host-a", fetch_timeout=5.0, child_timeout=5.0)
+
+    assert record["overall_ok"] is True  # both children exited 0 - not a process crash
+    assert record["ping_ok"] is False  # but the content problem must still be caught
+    assert any("vietnamplus" in issue for issue in record["feed_issues"])
+
+
+def test_run_once_pings_fail_when_only_a_feed_issue_is_present(tmp_path: Path, monkeypatch, capturing_server):
+    port = capturing_server.server_address[1]
+    monkeypatch.setenv("HEALTHCHECKS_PING_URL", f"http://127.0.0.1:{port}/ping/abc")
+    ok_script = _write_stub(tmp_path, "ok.py", STUB_SUCCESS.format(seen=5, new=1))
+    gzip_bug_script = _write_stub(tmp_path, "gzipbug.py", STUB_GZIP_BUG.format(seen=0, new=0))
+    monkeypatch.setattr(runner, "COLLECT_VN", gzip_bug_script)
+    monkeypatch.setattr(runner, "COLLECT_INTL", ok_script)
+
+    runner.run_once("host-a", fetch_timeout=5.0, child_timeout=5.0)
+
+    assert len(capturing_server.requests) == 1
+    method, path, body = capturing_server.requests[0]
+    assert (method, path) == ("POST", "/ping/abc/fail")
+    assert b"vietnamplus" in body
 
 
 def test_run_once_appends_to_heartbeat_across_multiple_runs(tmp_path: Path, monkeypatch):
