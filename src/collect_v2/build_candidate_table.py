@@ -138,6 +138,16 @@ def build_international(branch_dir: Path, collect_intl: types.ModuleType) -> pd.
     return pd.DataFrame(rows, columns=collect_intl.RAW_COLUMNS)
 
 
+def ref_feed_locators(branch_dir: Path) -> dict[str, str | None]:
+    """``{raw_payload_ref: feed_locator}`` for every candidate row that
+    ``build_domestic``/``build_international`` would produce for this
+    directory - the feed URL each ref was fetched from, for callers that need
+    it after ``clean_vn.py``/``clean_intl.py`` have already dropped
+    ``feed_url`` from their output (e.g. ``feed_state.is_pre_start()``)."""
+    chosen = _earliest_payload_per_key(branch_dir)
+    return {item["ref"]: item["record"].get("source_locator") for item in chosen.values()}
+
+
 def build(branch: str, collector_host: str) -> pd.DataFrame:
     branch_dir = paths.branch_host_dir(branch, collector_host)
     if branch == "domestic":
