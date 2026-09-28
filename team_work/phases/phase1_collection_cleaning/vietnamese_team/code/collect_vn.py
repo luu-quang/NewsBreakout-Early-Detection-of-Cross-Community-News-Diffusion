@@ -37,6 +37,17 @@ DEFAULT_FETCH_TIMEOUT = 15.0
 
 RSS_FEEDS = {
     "vnexpress": "https://vnexpress.net/rss/tin-moi-nhat.rss",
+    # Temporary exception to the "no category feeds" rule (2026-09-28): the
+    # tin-moi-nhat.rss endpoint above gets stuck on a severely stale CDN
+    # cache when polled from the VM's network path (confirmed 20h+ stale at
+    # times, immune to cache-busting - not a bug in this collector, verified
+    # from both the VM and elsewhere with identical code/headers - see
+    # docs/HANDOFF_2026-09-28.md). thoi-su.rss is reliably fresh from the same
+    # VM and is kept alongside (not replacing) tin-moi-nhat above so neither
+    # the v1/v2 comparison feed set nor vnexpress's own primary feed_id
+    # changes - remove this once tin-moi-nhat.rss's CDN cache is confirmed
+    # healthy again for a sustained period.
+    "vnexpress_thoisu": "https://vnexpress.net/rss/thoi-su.rss",
     "tuoitre": "https://tuoitre.vn/rss/tin-moi-nhat.rss",
     "thanhnien": "https://thanhnien.vn/rss/home.rss",
     "dantri": "https://dantri.com.vn/rss/home.rss",
